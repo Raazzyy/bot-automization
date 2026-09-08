@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "chat": "tsx src/scripts/chat.ts",
     "eval": "tsx src/scripts/eval.ts",
-    "models": "tsx src/scripts/models.ts"
+    "models": "tsx src/scripts/models.ts",
+    "media": "tsx src/scripts/media.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",

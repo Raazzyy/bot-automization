@@ -229,6 +229,25 @@ export const esfQueue = pgTable('esf_queue', {
   note: text('note'),
 }, (t) => ({ statusIdx: index('esf_status_idx').on(t.status) }));
 
+/**
+ * Библиотека файлов: прайсы, фото товаров, ролики.
+ * file_id кэшируется после первой отправки — Telegram позволяет
+ * переиспользовать его и не заливать файл заново каждый раз.
+ */
+export const mediaFiles = pgTable('media_files', {
+  key: text('key').primaryKey(),
+  kind: text('kind').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  keywords: jsonb('keywords').$type<string[]>().notNull().default([]),
+  path: text('path'),
+  fileId: text('file_id'),
+  caption: text('caption'),
+  isActive: boolean('is_active').notNull().default(true),
+  sentCount: integer('sent_count').notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** M5: ежедневный срез дебиторки */
 export const debtSnapshots = pgTable('debt_snapshots', {
   id: serial('id').primaryKey(),

@@ -7,6 +7,7 @@ import { log } from '../lib/logger.js';
 import { normalizePhone } from '../lib/phone.js';
 import { send, businessChatAllowed } from './send.js';
 import { runAgent } from '../ai/agent.js';
+import { sendAttachments } from './media.js';
 import { canSendToClients } from '../config.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
 
@@ -205,6 +206,15 @@ export function createBot(): Bot {
           toolCalls: turn.toolCalls,
           mode: config.MODE,
         });
+
+        // Файлы идут отдельными сообщениями следом за текстом
+        if (turn.attachments.length) {
+          const sent = await sendAttachments(ctx.api, chatId, turn.attachments, connId);
+          const failed = sent.filter((r) => !r.ok);
+          if (failed.length) {
+            log.error('Часть файлов не ушла', failed.map((f) => `${f.key}: ${f.error}`).join('; '));
+          }
+        }
       }
     }
 

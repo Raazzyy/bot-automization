@@ -96,8 +96,15 @@ const CASES: Case[] = [
 
 /** Грубая эвристика языка: достаточно, чтобы поймать ответ не на том языке */
 function looksUzbek(s: string): boolean {
-  const uzWords = /\b(bor|yo'q|narx|qancha|salom|rahmat|so'm|bormi|kerak|mumkin|бор|йўқ|нарх|қанча|салом|раҳмат|сўм|керак|мумкин)\b/i;
-  return uzWords.test(s);
+  // Внимание: \b в JavaScript определён через [A-Za-z0-9_] и с кириллицей
+  // не работает вовсе — «\bбор\b» не совпадёт никогда. Поэтому границы слов
+  // здесь не используем, ищем морфемы как подстроки.
+  const uz = /(alayk|assalom|salom|rahmat|raxmat|narx|qanch|bormi|yo'q|kerak|mumkin|topil|so'm|bering|qiling|uchun|нарх|қанч|борми|йўқ|керак|мумкин|топил|сўм|учун|қил|бўл|раҳмат|салом|бор,|бор\.|бор\?|ака|сумдан|омборда|миқдор)/i;
+
+  // Русские маркеры, которых в узбекском ответе быть не должно
+  const ru = /(здравств|извините|пожалуйста|стоит|рублей|в наличии|уточн|можете|которы|сейчас|сколько)/i;
+
+  return uz.test(s) && !ru.test(s);
 }
 
 function check(c: Case, t: AgentTurn): string[] {
@@ -161,7 +168,7 @@ async function main() {
     }
 
     // Бесплатный тариф — 15 запросов в минуту. Не спешим.
-    await new Promise((r) => setTimeout(r, 4500));
+    await new Promise((r) => setTimeout(r, 9000));
   }
 
   console.log(`\n${C.dim}─────────────────────────────────────────────${C.reset}`);

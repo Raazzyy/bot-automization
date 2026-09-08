@@ -1,0 +1,38 @@
+[
+  {
+    "key": "price_list",
+    "kind": "document",
+    "title": "Прайс-лист",
+    "description": "Актуальные цены на весь ассортимент",
+    "keywords": ["прайс", "прайс-лист", "цены", "прейскурант", "narx", "narxlar", "price", "нарх"],
+    "path": "media/price.pdf",
+    "caption": "Актуальный прайс-лист AKM Holdings"
+  },
+  {
+    "key": "rekvizity",
+    "kind": "document",
+    "title": "Реквизиты компании",
+    "description": "Банковские реквизиты для оплаты",
+    "keywords": ["реквизиты", "счёт", "оплата", "rekvizit", "hisob", "инн"],
+    "path": "media/rekvizity.pdf",
+    "caption": "Реквизиты ООО «AKM HOLDINGS INC»"
+  },
+  {
+    "key": "katalog_foto",
+    "kind": "photo",
+    "title": "Фото ассортимента",
+    "description": "Как выглядит наша продукция",
+    "keywords": ["фото", "картинка", "покажите", "как выглядит", "rasm", "surat"],
+    "path": "media/katalog.jpg",
+    "caption": "Наш ассортимент"
+  },
+  {
+    "key": "video_sklad",
+    "kind": "video",
+    "title": "Видео о складе",
+    "description": "Ролик про производство и склад",
+    "keywords": ["видео", "ролик", "video", "склад"],
+    "path": "media/sklad.mp4",
+    "caption": "Наш склад в Ташкенте"
+  }
+]

@@ -1,6 +1,6 @@
-import { and, eq, sql, desc, inArray, gte, lte } from 'drizzle-orm';
+import { and, or, eq, sql, desc } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
-import { products, prices, balances, orders, orderItems, markets, promotions } from '../db/schema.js';
+import { products, prices, balances, orders, orderItems, markets, promotions, mediaFiles } from '../db/schema.js';
 import { fmtSum, fmtAmount, fmtDate, todayTashkent } from '../lib/money.js';
 
 /**
@@ -22,6 +22,27 @@ export interface ToolResult {
   data: string;
   /** Признак, что нужен человек */
   handoff?: string;
+  /** Ключ файла, который надо приложить к ответу */
+  sendFile?: string;
+}
+
+/** Файл из библиотеки — что модель может предложить клиенту */
+export interface MediaOption {
+  key: string;
+  kind: string;
+  title: string;
+  description: string | null;
+  keywords: string[];
+}
+
+/** Активные файлы. Список подмешивается в промпт, чтобы модель знала, что есть. */
+export async function listMedia(): Promise<MediaOption[]> {
+  const db = await getDb();
+  const rows = await db.select().from(mediaFiles).where(eq(mediaFiles.isActive, true));
+  return rows.map((r) => ({
+    key: r.key, kind: r.kind, title: r.title,
+    description: r.description, keywords: r.keywords ?? [],
+  }));
 }
 
 /** Описания для модели — формат Gemini function declarations */
@@ -86,6 +107,17 @@ export const TOOL_DECLARATIONS = [
     parameters: { type: 'OBJECT', properties: {} },
   },
   {
+    name: 'otpravit_fayl',
+    description: 'Отправить клиенту готовый файл из библиотеки: прайс-лист, фото товара, ролик, реквизиты. Использовать, когда клиент просит прислать что-то из этого списка. Ключи доступных файлов перечислены в контексте — придумывать свои нельзя.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        klyuch: { type: 'STRING', description: 'Ключ файла из списка доступных' },
+      },
+      required: ['klyuch'],
+    },
+  },
+  {
     name: 'pozvat_menedzhera',
     description: 'Передать разговор живому менеджеру. Вызывать при жалобе, при разговоре о долгах и деньгах, по просьбе клиента, или если два раза подряд не удалось понять вопрос.',
     parameters: {
@@ -100,15 +132,47 @@ export const TOOL_DECLARATIONS = [
 
 /* ─────────── Реализации ─────────── */
 
+/**
+ * Каталог в Linko ведётся по-русски, а клиенты пишут и на узбекском.
+ * Без этого словаря на «guruch» не находится «Рис».
+ */
+const UZ_RU: Record<string, string> = {
+  "yog'": 'масло', yog: 'масло', moy: 'масло', ёғ: 'масло',
+  guruch: 'рис', гуруч: 'рис',
+  shakar: 'сахар', shakarcha: 'сахар', шакар: 'сахар', qand: 'сахар', қанд: 'сахар',
+  un: 'мука', ун: 'мука',
+  makaron: 'макароны', макарон: 'макароны',
+  tuz: 'соль', туз: 'соль',
+  choy: 'чай', чой: 'чай',
+  sut: 'молоко', сут: 'молоко',
+  tuxum: 'яйцо', тухум: 'яйцо',
+  "go'sht": 'мясо', 'go‘sht': 'мясо', gosht: 'мясо', гўшт: 'мясо',
+  non: 'хлеб', нон: 'хлеб',
+  suv: 'вода', сув: 'вода',
+};
+
+/** Варианты запроса: как написали + перевод с узбекского */
+function searchVariants(q: string): string[] {
+  const low = q.toLowerCase().trim();
+  const out = new Set<string>([low]);
+  for (const word of low.split(/[\s,]+/)) {
+    const ru = UZ_RU[word];
+    if (ru) out.add(ru);
+  }
+  return [...out];
+}
+
 async function najtiTovar(args: { zapros?: string }): Promise<ToolResult> {
   const q = String(args.zapros ?? '').trim();
   if (q.length < 2) return { ok: false, data: 'Слишком короткий запрос.' };
 
   const db = await getDb();
+  const variants = searchVariants(q);
+
   const rows = await db.select().from(products)
     .where(and(
       eq(products.isActive, true),
-      sql`lower(${products.name}) like ${'%' + q.toLowerCase() + '%'}`,
+      or(...variants.map((v) => sql`lower(${products.name}) like ${'%' + v + '%'}`)),
     ))
     .limit(8);
 
@@ -247,6 +311,30 @@ async function dejstvuyushchieAkcii(): Promise<ToolResult> {
   };
 }
 
+async function otpravitFayl(args: { klyuch?: string }): Promise<ToolResult> {
+  const key = String(args.klyuch ?? '').trim();
+  if (!key) return { ok: false, data: 'Не указан ключ файла.' };
+
+  const db = await getDb();
+  const [f] = await db.select().from(mediaFiles).where(eq(mediaFiles.key, key)).limit(1);
+
+  if (!f || !f.isActive) {
+    const avail = await listMedia();
+    return {
+      ok: false,
+      data: avail.length
+        ? `Файла «${key}» нет. Доступны: ${avail.map((a) => a.key).join(', ')}`
+        : 'Библиотека файлов пуста — отправлять нечего.',
+    };
+  }
+
+  return {
+    ok: true,
+    data: `Файл «${f.title}» будет приложен к твоему ответу. Коротко скажи клиенту, что отправляешь — сам файл дублировать текстом не нужно.`,
+    sendFile: f.key,
+  };
+}
+
 async function pozvatMenedzhera(args: { prichina?: string }): Promise<ToolResult> {
   const reason = String(args.prichina ?? 'клиент попросил').slice(0, 200);
   return {
@@ -267,6 +355,7 @@ const HANDLERS: Record<string, Handler> = {
   moi_zakazy: (a, c) => moiZakazy(a as { skolko?: number }, c),
   status_zakaza: (a, c) => statusZakaza(a as { order_id?: number }, c),
   dejstvuyushchie_akcii: () => dejstvuyushchieAkcii(),
+  otpravit_fayl: (a) => otpravitFayl(a as { klyuch?: string }),
   pozvat_menedzhera: (a) => pozvatMenedzhera(a as { prichina?: string }),
 };
 

@@ -188,6 +188,20 @@ const DDL = [
    )`,
   `CREATE INDEX IF NOT EXISTS esf_status_idx ON esf_queue (status)`,
 
+  `CREATE TABLE IF NOT EXISTS media_files (
+     key text PRIMARY KEY,
+     kind text NOT NULL,
+     title text NOT NULL,
+     description text,
+     keywords jsonb NOT NULL DEFAULT '[]'::jsonb,
+     path text,
+     file_id text,
+     caption text,
+     is_active boolean NOT NULL DEFAULT true,
+     sent_count integer NOT NULL DEFAULT 0,
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
+
   `CREATE TABLE IF NOT EXISTS debt_snapshots (
      id serial PRIMARY KEY,
      date text NOT NULL,

@@ -1,7 +1,7 @@
 import { config } from '../config.js';
 import { log } from '../lib/logger.js';
-import { TOOL_DECLARATIONS, callTool, type ToolContext } from './tools.js';
-import { SYSTEM_CHANNEL_A, SYSTEM_CHANNEL_B, buildContext } from './prompt.js';
+import { TOOL_DECLARATIONS, callTool, listMedia, type ToolContext } from './tools.js';
+import { SYSTEM_CHANNEL_A, SYSTEM_CHANNEL_B, buildContext, detectLang } from './prompt.js';
 
 /**
  * Клиент Gemini поверх REST — без SDK.
@@ -13,8 +13,11 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 interface Part {
   text?: string;
-  functionCall?: { name: string; args: Record<string, unknown> };
-  functionResponse?: { name: string; response: Record<string, unknown> };
+  /** Модели Gemini 3.x возвращают подпись рассуждения и id вызова.
+   *  Их обязательно вернуть обратно вместе с functionCall, иначе API даёт 400. */
+  thoughtSignature?: string;
+  functionCall?: { name: string; args: Record<string, unknown>; id?: string };
+  functionResponse?: { name: string; response: Record<string, unknown>; id?: string };
 }
 interface Content { role: 'user' | 'model'; parts: Part[] }
 
@@ -31,6 +34,8 @@ export interface AgentTurn {
   toolCalls: { name: string; args: Record<string, unknown>; result: string }[];
   /** Нужен человек */
   handoff?: string;
+  /** Ключи файлов, которые надо приложить к ответу */
+  attachments: string[];
   error?: string;
 }
 
@@ -45,7 +50,9 @@ export interface AgentInput {
   history?: { role: 'user' | 'model'; text: string }[];
 }
 
-async function generate(body: unknown): Promise<GenerateResponse> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function generate(body: unknown, attempt = 1): Promise<GenerateResponse> {
   const url = `${BASE}/models/${config.GEMINI_MODEL}:generateContent?key=${config.GEMINI_API_KEY}`;
 
   const res = await fetch(url, {
@@ -59,6 +66,17 @@ async function generate(body: unknown): Promise<GenerateResponse> {
 
   if (!res.ok) {
     const msg = json.error?.message ?? `HTTP ${res.status}`;
+
+    // Бесплатный тариф — 15 запросов в минуту. Сервер сам говорит,
+    // сколько ждать; ждём и повторяем, вместо того чтобы падать.
+    if (res.status === 429 && attempt <= 2) {
+      const m = /retry in ([0-9.]+)s/i.exec(msg);
+      const waitMs = Math.min(Math.ceil(Number(m?.[1] ?? 30)) + 2, 70) * 1000;
+      log.warn(`Gemini: лимит запросов, жду ${Math.round(waitMs / 1000)} с и повторяю`);
+      await sleep(waitMs);
+      return generate(body, attempt + 1);
+    }
+
     const hint =
       res.status === 429 ? ' — упёрлись в бесплатный лимит, подождите минуту'
       : res.status === 400 && /API key/i.test(msg) ? ' — проверьте GEMINI_API_KEY'
@@ -73,7 +91,7 @@ async function generate(body: unknown): Promise<GenerateResponse> {
 /** Один ход разговора: вопрос клиента → ответ, с вызовами инструментов по пути */
 export async function runAgent(input: AgentInput): Promise<AgentTurn> {
   if (!config.GEMINI_API_KEY) {
-    return { reply: '', toolCalls: [], error: 'GEMINI_API_KEY не задан' };
+    return { reply: '', toolCalls: [], attachments: [], error: 'GEMINI_API_KEY не задан' };
   }
 
   const system = (input.channel === 'A' ? SYSTEM_CHANNEL_A : SYSTEM_CHANNEL_B)
@@ -83,6 +101,7 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
       marketName: input.marketName,
       marketId: input.ctx.marketId,
       lastOrderDate: input.lastOrderDate,
+      lang: detectLang(input.message),
     });
 
   const contents: Content[] = [
@@ -91,6 +110,7 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
   ];
 
   const toolCalls: AgentTurn['toolCalls'] = [];
+  const attachments: string[] = [];
   let handoff: string | undefined;
 
   // До 5 раундов: модель может несколько раз сходить в инструменты подряд
@@ -101,35 +121,52 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
         contents,
         systemInstruction: { parts: [{ text: system }] },
         tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 600 },
+        generationConfig: {
+          temperature: 0.4,
+          // Щедрый лимит: у Gemini 3.x «размышления» тратят тот же бюджет,
+          // и при 600 модель успевала подумать, но не ответить.
+          maxOutputTokens: 2048,
+          // Нам не нужны длинные рассуждения — нужен быстрый короткий ответ.
+          thinkingConfig: { thinkingLevel: 'low' },
+        },
       });
     } catch (e) {
       log.error('Gemini не ответил', (e as Error).message);
-      return { reply: '', toolCalls, error: (e as Error).message };
+      return { reply: '', toolCalls, attachments, error: (e as Error).message };
     }
 
     if (res.promptFeedback?.blockReason) {
-      return { reply: '', toolCalls, error: `запрос заблокирован: ${res.promptFeedback.blockReason}` };
+      return { reply: '', toolCalls, attachments, error: `запрос заблокирован: ${res.promptFeedback.blockReason}` };
     }
 
-    const parts = res.candidates?.[0]?.content?.parts ?? [];
-    const calls = parts.filter((p) => p.functionCall).map((p) => p.functionCall!);
+    const modelContent = res.candidates?.[0]?.content;
+    const parts = modelContent?.parts ?? [];
+    const calls = parts.filter((p) => p.functionCall);
 
     if (!calls.length) {
       const text = parts.map((p) => p.text ?? '').join('').trim();
-      return { reply: text, toolCalls, handoff };
+      return { reply: text, toolCalls, attachments, handoff };
     }
 
-    // Модель просит инструменты — выполняем и возвращаем результаты
-    contents.push({ role: 'model', parts: calls.map((fc) => ({ functionCall: fc })) });
+    // Ответ модели кладём в историю КАК ЕСТЬ: вместе с thoughtSignature
+    // и id вызова. Пересобирать его нельзя — Gemini 3.x вернёт 400.
+    contents.push(modelContent as Content);
 
     const responses: Part[] = [];
-    for (const fc of calls) {
+    for (const p of calls) {
+      const fc = p.functionCall!;
       const r = await callTool(fc.name, fc.args ?? {}, input.ctx);
       toolCalls.push({ name: fc.name, args: fc.args ?? {}, result: r.data });
       if (r.handoff) handoff = r.handoff;
+      if (r.sendFile && !attachments.includes(r.sendFile)) attachments.push(r.sendFile);
       log.debug(`инструмент ${fc.name}`, { args: fc.args, ok: r.ok });
-      responses.push({ functionResponse: { name: fc.name, response: { result: r.data } } });
+      responses.push({
+        functionResponse: {
+          name: fc.name,
+          response: { result: r.data },
+          ...(fc.id ? { id: fc.id } : {}),
+        },
+      });
     }
     contents.push({ role: 'user', parts: responses });
   }
@@ -137,6 +174,7 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
   return {
     reply: '',
     toolCalls,
+    attachments,
     handoff: handoff ?? 'модель зациклилась на инструментах',
     error: 'превышено число раундов',
   };

@@ -79,6 +79,9 @@ async function main() {
       console.log(`${C.yellow}      → передано менеджеру: ${turn.handoff}${C.reset}`);
     }
 
+    if (turn.attachments.length) {
+      console.log(`${C.yellow}      📎 приложит файлы: ${turn.attachments.join(', ')}${C.reset}`);
+    }
     console.log(`${C.blue}бот ›${C.reset} ${turn.reply || '(промолчал)'}`);
     console.log(`${C.dim}      ${ms} мс${C.reset}\n`);
 

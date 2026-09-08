@@ -28,6 +28,11 @@ const COMMON_RULES = `
    отвечаешь на узбекском. На русском — на русском. На смеси — на том, которого больше.
 
 7. Не выдумывай товары. Если najti_tovar ничего не нашёл — так и скажи.
+
+8. Каталог заведён по-русски. Если клиент спрашивает на узбекском, ищи
+   ПО-РУССКИ: «yog'» → «масло», «guruch» → «рис», «shakar» → «сахар»,
+   «un» → «мука». Не нашлось по одному слову — попробуй синоним.
+   Отвечать при этом всё равно на узбекском.
 `.trim();
 
 export const SYSTEM_CHANNEL_A = `
@@ -67,14 +72,52 @@ export const SYSTEM_CHANNEL_B = `
 ${COMMON_RULES}
 `.trim();
 
+/**
+ * Определяем язык вопроса кодом и указываем модели прямо.
+ * Общего правила «отвечай на языке вопроса» в промпте мало:
+ * на смешанных фразах модель регулярно съезжает на русский.
+ */
+export function detectLang(text: string): 'uz' | 'ru' {
+  const t = text.toLowerCase();
+
+  const uz = /(salom|assalom|rahmat|raxmat|narx|qanch|bormi|yo'q|kerak|mumkin|qancha|bering|nechchi|nima|yaxshi|aka|opa|so'm|bo'ladi|мумкин|керак|қанча|нарх|борми|салом|раҳмат|йўқ|нима|яхши|ака|бўлади|сўм)/;
+  const ru = /(здравств|привет|сколько|почём|почем|стоит|есть ли|нужно|можно|спасибо|пожалуйста|цена|заказ|доставка)/;
+
+  const hasUz = uz.test(t);
+  const hasRu = ru.test(t);
+
+  if (hasUz && !hasRu) return 'uz';
+  if (hasRu && !hasUz) return 'ru';
+
+  // Латиница с апострофами — почти наверняка узбекский
+  if (/[a-z]/.test(t) && /['''‘’]/.test(t)) return 'uz';
+  // Кириллица со специфично узбекскими буквами
+  if (/[ўқғҳ]/.test(t)) return 'uz';
+
+  return hasUz ? 'uz' : 'ru';
+}
+
 /** Контекст клиента, который подмешивается к системному промпту */
 export function buildContext(o: {
   clientName?: string | null;
   marketName?: string | null;
   marketId?: number | null;
   lastOrderDate?: string | null;
+  lang?: 'uz' | 'ru';
+  media?: { key: string; title: string; description: string | null; keywords: string[] }[];
 }): string {
-  const lines: string[] = ['ЧТО ИЗВЕСТНО О СОБЕСЕДНИКЕ:'];
+  const lines: string[] = [];
+
+  if (o.lang) {
+    lines.push(
+      o.lang === 'uz'
+        ? 'ЯЗЫК ОТВЕТА: узбекский. Клиент написал по-узбекски — весь ответ пиши на узбекском, ни одного русского предложения.'
+        : 'ЯЗЫК ОТВЕТА: русский.',
+      '',
+    );
+  }
+
+  lines.push('ЧТО ИЗВЕСТНО О СОБЕСЕДНИКЕ:');
 
   if (o.clientName) lines.push(`Имя: ${o.clientName}`);
   if (o.marketName) lines.push(`Точка: ${o.marketName} (id ${o.marketId})`);

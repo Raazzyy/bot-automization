@@ -2,10 +2,12 @@ import { Bot, InlineKeyboard } from 'grammy';
 import { eq, sql, desc } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';
-import { businessConnections, customers, channelBindings, messages, esfQueue, orders } from '../db/schema.js';
+import { businessConnections, customers, channelBindings, messages, esfQueue, markets } from '../db/schema.js';
 import { log } from '../lib/logger.js';
 import { normalizePhone } from '../lib/phone.js';
 import { send, businessChatAllowed } from './send.js';
+import { runAgent } from '../ai/agent.js';
+import { canSendToClients } from '../config.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
 
 const esc = (s: unknown) =>
@@ -145,22 +147,92 @@ export function createBot(): Bot {
       }
     }
 
-    // M3 (диалог с ИИ) ещё не подключён. Пока — режим «только слушаю»
-    // из недели 4: черновик ответа уходит менеджерам, клиенту ничего.
-    if (config.MANAGER_CHAT_ID) {
+    // Готовим ответ моделью
+    const text = msg.text ?? '';
+    if (!text) return;
+
+    const cust = ctx.from
+      ? (await db.select().from(customers).where(eq(customers.tgUserId, ctx.from.id)).limit(1))[0]
+      : undefined;
+    const marketId = cust?.marketIds?.[0] ?? null;
+    const market = marketId != null
+      ? (await db.select().from(markets).where(eq(markets.id, marketId)).limit(1))[0]
+      : undefined;
+
+    // Последние реплики этого чата — контекст разговора
+    const prev = await db.select().from(messages)
+      .where(eq(messages.chatId, chatId))
+      .orderBy(desc(messages.id))
+      .limit(11);
+
+    const history = prev.reverse().slice(0, -1)
+      .filter((m) => m.text)
+      .map((m) => ({
+        role: (m.author === 'client' ? 'user' : 'model') as 'user' | 'model',
+        text: m.text!,
+      }));
+
+    const turn = await runAgent({
+      message: text,
+      channel: 'A',
+      ctx: { marketId },
+      clientName: ctx.from?.first_name ?? null,
+      marketName: market?.name ?? null,
+      history,
+    });
+
+    if (turn.error) log.error('Агент не смог ответить', turn.error);
+
+    // Клиенту отвечаем только в live. В shadow — черновик менеджерам.
+    if (canSendToClients && turn.reply && !turn.error) {
+      const res = await send(ctx.api, {
+        dedupeKey: `reply:${chatId}:${msg.message_id}`,
+        kind: 'a_channel_reply',
+        chatId,
+        text: turn.reply,
+        audience: 'client',
+        channel: 'A',
+        businessConnectionId: connId,
+      });
+
+      if (res.sent) {
+        await db.insert(messages).values({
+          customerId: cust?.id ?? null,
+          channel: 'A', chatId,
+          tgMessageId: res.messageId,
+          direction: 'out', author: 'bot',
+          text: turn.reply,
+          toolCalls: turn.toolCalls,
+          mode: config.MODE,
+        });
+      }
+    }
+
+    // Менеджерам: в shadow — черновик, в live — только когда нужен человек
+    const needStaff = !canSendToClients || turn.handoff || turn.error;
+    if (config.MANAGER_CHAT_ID && needStaff) {
+      const tools = turn.toolCalls.map((t) => t.name).join(', ');
       await send(ctx.api, {
         dedupeKey: `draft:${chatId}:${msg.message_id}`,
         kind: 'a_channel_draft',
         chatId: config.MANAGER_CHAT_ID,
         text: [
-          `<b>Канал A · новое сообщение</b>`,
+          turn.handoff
+            ? `<b>Канал A · нужен менеджер</b>`
+            : `<b>Канал A · новое сообщение</b>`,
           `От: ${esc(ctx.from?.first_name ?? '?')}`
-            + (ctx.from?.username ? ` @${esc(ctx.from.username)}` : ''),
+            + (ctx.from?.username ? ` @${esc(ctx.from.username)}` : '')
+            + (market ? ` · ${esc(market.name)}` : ' · точка не определена'),
           '',
-          esc(msg.text ?? '[вложение]'),
+          `Клиент: ${esc(text)}`,
           '',
-          `<i>Бот в режиме «только слушаю» — клиенту не отвечено.</i>`,
-        ].join('\n'),
+          turn.error
+            ? `<i>Ошибка: ${esc(turn.error)}</i>`
+            : `Ответ бота: ${esc(turn.reply || '(промолчал)')}`,
+          turn.handoff ? `\n⚠️ <b>Причина передачи:</b> ${esc(turn.handoff)}` : '',
+          tools ? `\n<i>инструменты: ${esc(tools)}</i>` : '',
+          canSendToClients ? '' : `\n<i>Режим «только слушаю» — клиенту не отвечено.</i>`,
+        ].filter(Boolean).join('\n'),
         audience: 'staff',
         channel: 'B',
       });

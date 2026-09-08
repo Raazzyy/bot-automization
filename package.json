@@ -12,7 +12,10 @@
     "dev": "tsx watch src/dev.ts",
     "start": "tsx src/dev.ts",
     "seed": "tsx src/scripts/seed-demo.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "chat": "tsx src/scripts/chat.ts",
+    "eval": "tsx src/scripts/eval.ts",
+    "models": "tsx src/scripts/models.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",

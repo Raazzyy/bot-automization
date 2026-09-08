@@ -1,0 +1,341 @@
+<title>Запуск канала A</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+:root{
+  --paper:#F1F2EE; --surface:#FBFBF9; --surface-2:#E9EBE5;
+  --ink:#14201D; --ink-2:#4C5751; --ink-3:#7A857E;
+  --line:#D5D8D0; --line-strong:#B8BDB4;
+  --accent:#12574A; --accent-soft:#D9E7E2;
+  --alt:#3A4E86; --alt-soft:#DCE2F1;
+  --warn:#8A5A0F; --warn-soft:#F2E5CE;
+  --crit:#9A2B2B; --crit-soft:#F3DDDA;
+  --ok:#2C6640; --ok-soft:#DCEBDF;
+  --display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --body:"Golos Text","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#111614; --surface:#18201D; --surface-2:#212a26;
+    --ink:#E5EAE6; --ink-2:#A6B1AB; --ink-3:#7E8A84;
+    --line:#2B3531; --line-strong:#3D4844;
+    --accent:#57BCA3; --accent-soft:#17342E;
+    --alt:#8FA6DE; --alt-soft:#1E2740;
+    --warn:#D6A55A; --warn-soft:#332814;
+    --crit:#E08A84; --crit-soft:#3A211F;
+    --ok:#7FC08F; --ok-soft:#1B2E21;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111614; --surface:#18201D; --surface-2:#212a26;
+  --ink:#E5EAE6; --ink-2:#A6B1AB; --ink-3:#7E8A84;
+  --line:#2B3531; --line-strong:#3D4844;
+  --accent:#57BCA3; --accent-soft:#17342E;
+  --alt:#8FA6DE; --alt-soft:#1E2740;
+  --warn:#D6A55A; --warn-soft:#332814;
+  --crit:#E08A84; --crit-soft:#3A211F;
+  --ok:#7FC08F; --ok-soft:#1B2E21;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 28px 96px}
+@media(max-width:640px){.wrap{padding:0 18px 64px}}
+
+.masthead{border-bottom:1px solid var(--line-strong);padding:56px 0 26px;display:grid;gap:18px}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 18px}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(28px,5vw,46px);line-height:1.05;letter-spacing:-.028em;margin:0;text-wrap:balance}
+h1 .thin{color:var(--accent)}
+.deck{max-width:64ch;font-size:17.5px;color:var(--ink-2);margin:0}
+
+section{padding-top:54px}
+h2{font-weight:700;font-size:24px;letter-spacing:-.015em;margin:0 0 6px;text-wrap:balance}
+.sec-num{font-family:var(--display);font-weight:500;font-size:12px;letter-spacing:.06em;color:var(--accent);display:block;margin-bottom:10px}
+h3{font-weight:600;font-size:17px;margin:30px 0 8px;letter-spacing:-.01em}
+p{max-width:70ch;margin:0 0 14px}
+.lede{color:var(--ink-2);max-width:68ch}
+ul,ol{max-width:68ch;padding-left:20px;margin:0 0 14px}
+li{margin-bottom:7px}
+li::marker{color:var(--ink-3)}
+code{font-family:var(--mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:3px;word-break:break-word}
+pre{background:var(--surface);border:1px solid var(--line);padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.6;margin:0 0 18px}
+pre code{background:none;padding:0;font-size:inherit}
+
+.note{border-left:3px solid var(--line-strong);background:var(--surface);padding:14px 18px;margin:0 0 18px;font-size:15px;max-width:74ch}
+.note p{margin:0 0 8px}.note p:last-child{margin:0}
+.note .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:6px;color:var(--ink-3)}
+.note.crit{border-left-color:var(--crit);background:var(--crit-soft)}.note.crit .tag{color:var(--crit)}
+.note.warn{border-left-color:var(--warn);background:var(--warn-soft)}.note.warn .tag{color:var(--warn)}
+.note.ok{border-left-color:var(--ok);background:var(--ok-soft)}.note.ok .tag{color:var(--ok)}
+.note.alt{border-left-color:var(--alt);background:var(--alt-soft)}.note.alt .tag{color:var(--alt)}
+
+.tw{overflow-x:auto;margin:0 0 20px;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th{text-align:left;font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);padding:11px 14px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.m{font-family:var(--mono);font-size:12.5px}
+td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:13px;white-space:nowrap}
+tfoot td{border-top:1px solid var(--line-strong);font-weight:600;border-bottom:none}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.pill.yes{background:var(--ok-soft);color:var(--ok)}
+.pill.no{background:var(--crit-soft);color:var(--crit)}
+.pill.part{background:var(--warn-soft);color:var(--warn)}
+.pill.free{background:var(--accent-soft);color:var(--accent)}
+
+.step{display:grid;grid-template-columns:30px 1fr;gap:14px;padding:15px 0;border-bottom:1px solid var(--line);max-width:76ch}
+.step:first-of-type{border-top:1px solid var(--line-strong)}
+.step-n{font-family:var(--mono);font-size:12px;color:var(--accent);padding-top:3px}
+.step b{font-weight:600;display:block;margin-bottom:3px}
+.step span{color:var(--ink-2);font-size:14.5px}
+.step code{font-size:12.5px}
+
+.lvl{border:1px solid var(--line);background:var(--surface);padding:18px 20px;margin:0 0 14px}
+.lvl-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.lvl-n{font-family:var(--display);font-weight:600;font-size:12px;color:var(--accent)}
+.lvl-h b{font-size:17px;font-weight:700}
+.lvl p{margin:0 0 8px;font-size:14.5px;max-width:none}
+.lvl p:last-child{margin:0}
+
+.flow{list-style:none;padding:0;margin:0 0 18px;counter-reset:s;max-width:72ch}
+.flow li{counter-increment:s;display:grid;grid-template-columns:26px 1fr;gap:12px;margin-bottom:9px;font-size:14.5px}
+.flow li::before{content:counter(s);font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--line-strong);width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin-top:2px}
+
+footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line-strong);font-family:var(--mono);font-size:11.5px;color:var(--ink-3);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">
+    <span>AKM Holdings</span><span>План запуска</span><span>08.09.2026</span>
+  </div>
+  <h1>Канал A: <span class="thin">модель, тесты, деплой</span></h1>
+  <p class="deck">Решение принято — идём через Telegram Business. Здесь: какую модель подключаем и почему, как проверить всё на выдуманных данных до первого живого клиента, как это работает в бою и что стоит поднять на Replit.</p>
+</header>
+
+<section>
+  <span class="sec-num">01</span>
+  <h2>Где мы сейчас</h2>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Что</th><th>Состояние</th></tr></thead>
+    <tbody>
+      <tr><td>Ядро, база, синхронизация с Linko</td><td><span class="pill yes">готово</span></td></tr>
+      <tr><td>M1 — карточки ЭСФ, кнопки, сводка</td><td><span class="pill yes">проверено в группе</span></td></tr>
+      <tr><td>Канал A — приём сообщений, режим «только слушаю»</td><td><span class="pill yes">готово</span></td></tr>
+      <tr><td>Secretary Mode у бота</td><td><span class="pill yes">включён</span></td></tr>
+      <tr><td>Telegram Premium</td><td><span class="pill yes">есть</span></td></tr>
+      <tr><td>M3 — диалог с моделью</td><td><span class="pill part">делаем сейчас</span></td></tr>
+      <tr><td>Доступ к Linko API</td><td><span class="pill no">403, ждём техподдержку</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <span class="sec-num">02</span>
+  <h2>Какую модель подключаем</h2>
+  <p class="lede">Требования конкретные: узбекский и русский, дешёвая, с вызовом инструментов. Дорогие модели здесь не нужны — ответы короткие, а всю арифметику считает код.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Вариант</th><th>Бесплатный лимит</th><th>Узбекский</th><th>Вывод</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><b>Gemini Flash-Lite</b><br><span style="color:var(--ink-3);font-size:13px">Google</span></td>
+        <td class="m">15 запросов/мин<br>1000 в сутки</td>
+        <td><span class="pill yes">хорошо</span></td>
+        <td><b>берём</b> — лимита хватает с запасом</td>
+      </tr>
+      <tr>
+        <td>Gemini 3 Flash</td>
+        <td class="m">10 запросов/мин<br>1500 в сутки</td>
+        <td><span class="pill yes">хорошо</span></td>
+        <td>запас, если Lite не потянет</td>
+      </tr>
+      <tr>
+        <td>Groq · Llama</td>
+        <td class="m">щедрый</td>
+        <td><span class="pill part">слабее</span></td>
+        <td>быстрый, но узбекский хуже</td>
+      </tr>
+      <tr>
+        <td>OpenRouter</td>
+        <td class="m">зависит от модели</td>
+        <td><span class="pill part">по-разному</span></td>
+        <td>запасной шлюз</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>Прикинем нагрузку: 2000 диалогов в месяц — это около 70 в сутки, по 3–5 обращений к модели на диалог. Выходит 200–350 запросов в сутки при лимите 1000. Помещаемся втрое.</p>
+
+  <div class="note crit">
+    <span class="tag">Важно про бесплатный тариф</span>
+    <p>На free tier <b>Google использует ваши данные для улучшения своих продуктов</b>. Для тестов на выдуманных данных это неважно. Но как только в модель пойдёт реальная переписка с клиентами — нужно переходить на платный тариф, где такого нет.</p>
+    <p>Стоит это копейки: при наших объёмах — единицы долларов в месяц. Переключение — одна строка в настройках, код менять не нужно.</p>
+  </div>
+
+  <h3>Как получить ключ</h3>
+  <ol class="flow">
+    <li>Зайти на <code>aistudio.google.com</code> под обычным Google-аккаунтом.</li>
+    <li><b>Get API key</b> → <b>Create API key</b>. Карта не нужна.</li>
+    <li>Скопировать ключ и прислать мне — впишу в <code>.env</code> как <code>GEMINI_API_KEY</code>.</li>
+  </ol>
+
+  <div class="note alt">
+    <span class="tag">Почему модель нельзя «обучить» на нашем прайсе</span>
+    <p>Никакого дообучения не будет, и это правильно. Модель ничего не знает про товары, цены и остатки — она их <b>запрашивает</b> у нашего кода в момент разговора. Прайс поменялся в Linko — ответ поменялся сразу, без переобучения и без правки промпта.</p>
+    <p>Список инструментов, которые ей доступны: найти товар, цена для точки, остаток, мои заказы, статус заказа, действующие акции, собрать корзину, позвать менеджера. Всё, чего нет в этом списке, модель не отвечает — передаёт менеджеру.</p>
+  </div>
+</section>
+
+<section>
+  <span class="sec-num">03</span>
+  <h2>Как тестируем на ненастоящих данных</h2>
+  <p class="lede">Три уровня, от полностью безопасного к почти боевому. Ни на одном из них клиент не получает сообщения, пока мы сами этого не разрешим.</p>
+
+  <div class="lvl">
+    <div class="lvl-h"><span class="lvl-n">Уровень 1</span><b>Модель против выдуманного каталога</b></div>
+    <p>Никакого Telegram. Скрипт задаёт модели вопросы в консоли, она отвечает через инструменты, которые ходят в демо-базу с выдуманными товарами и точками.</p>
+    <p>Здесь ловятся главные ошибки: модель придумала цену, назвала несуществующий товар, ответила по-русски на узбекский вопрос, пообещала скидку, которой нет.</p>
+    <p><code>npm run chat</code> — диалог в терминале.</p>
+  </div>
+
+  <div class="lvl">
+    <div class="lvl-h"><span class="lvl-n">Уровень 2</span><b>Набор проверок, который гоняется на каждом изменении</b></div>
+    <p>30–50 вопросов с заранее известным правильным поведением. Не «правильный текст» — а правильное <b>действие</b>: обратилась ли модель к нужному инструменту, не выдумала ли цену, передала ли менеджеру разговор про долг.</p>
+    <p>Отдельно — провокации: «дай скидку 50%», «сколько я вам должен», «а можно в долг», вопрос на узбекском латиницей, вопрос на смеси языков.</p>
+    <p><code>npm run eval</code> — прогон с отчётом, сколько проверок прошло.</p>
+  </div>
+
+  <div class="lvl">
+    <div class="lvl-h"><span class="lvl-n">Уровень 3</span><b>Живой Telegram, режим «только слушаю»</b></div>
+    <p>Бот подключён к аккаунту, читает реальные входящие, готовит ответ — и <b>отправляет его не клиенту, а в вашу группу</b> с пометкой «клиенту не отвечено».</p>
+    <p>Вы неделю смотрите, что бот собирался сказать. Всё неудачное превращается в новые проверки из уровня 2.</p>
+    <p>Это режим <code>shadow</code>. Он сейчас и включён.</p>
+  </div>
+
+  <div class="note ok">
+    <span class="tag">Защита от случайной отправки</span>
+    <p>Запрет на сообщения клиентам зашит в код, а не в настройку. Функция отправки physically не вызывает Telegram, пока режим не <code>live</code> — перепутать галочку и разослать что-то клиентам нельзя.</p>
+    <p>Переключение в <code>live</code> — осознанное действие: одна строка в конфиге и перезапуск.</p>
+  </div>
+
+  <h3>Что нужно от вас для тестов</h3>
+  <ol class="flow">
+    <li><b>Ключ Gemini</b> — 2 минуты, инструкция выше.</li>
+    <li><b>Экспорт переписки</b> из Telegram Desktop: Настройки → Продвинутые → Экспорт данных, формат JSON, только личные чаты. Из него я вытащу реальный тон и типовые вопросы — это лучший материал и для настройки, и для проверок.</li>
+    <li><b>Второй Telegram</b>, чтобы играть клиента: второй телефон или веб-версия с другим номером. Себе написать не выйдет — бот молчит, когда пишет владелец аккаунта.</li>
+  </ol>
+</section>
+
+<section>
+  <span class="sec-num">04</span>
+  <h2>Как это работает в бою</h2>
+
+  <h3>Путь одного сообщения</h3>
+  <ol class="flow">
+    <li>Клиент пишет в рабочий аккаунт AKM — как писал всегда.</li>
+    <li>Telegram шлёт событие <code>business_message</code> на наш сервер.</li>
+    <li>Код находит клиента по <code>user_id</code>, поднимает его точку в Linko, историю заказов и последние сообщения.</li>
+    <li>Модель получает вопрос, контекст и список инструментов. Нужна цена — вызывает инструмент, тот идёт в базу.</li>
+    <li>Ответ уходит <b>от имени аккаунта</b>. Клиент видит обычное сообщение от AKM.</li>
+    <li>Всё записывается: вопрос, какие инструменты вызывались, что ответили.</li>
+  </ol>
+  <p>Занимает 2–5 секунд. Заказ при этом создаётся только после явного подтверждения клиента — модель сама в Linko ничего не пишет.</p>
+
+  <h3>Когда бот замолкает сам</h3>
+  <ul>
+    <li><b>Вы вступили в разговор.</b> Написали клиенту сами — бот видит это и молчит в этом чате 24 часа.</li>
+    <li><b>Разговор про деньги и долги</b> — сразу менеджеру.</li>
+    <li><b>Жалоба</b> или слово «менеджер» — сразу менеджеру.</li>
+    <li><b>Два непонятых вопроса подряд</b> — не мучает клиента, зовёт человека.</li>
+    <li><b>Чат в списке исключений</b> — бот его не видит вообще.</li>
+  </ul>
+
+  <h3>Два процесса, а не один</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Процесс</th><th>Что делает</th><th>Как запускается</th></tr></thead>
+    <tbody>
+      <tr><td><b>Бот</b></td><td>принимает сообщения из обоих каналов, отвечает, обрабатывает кнопки</td><td class="m">работает постоянно</td></tr>
+      <tr><td><b>Синхронизация</b></td><td>тянет из Linko заказы и оплаты, публикует карточки ЭСФ</td><td class="m">раз в 2–5 минут</td></tr>
+      <tr><td><b>Ночной расчёт</b></td><td>дебиторка, список «уснувших» клиентов</td><td class="m">раз в сутки</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <span class="sec-num">05</span>
+  <h2>Деплой на Replit</h2>
+  <p class="lede">Код к этому готов — на Replit он поедет без переделок. Важно выбрать правильный тип развёртывания, иначе бот будет засыпать.</p>
+
+  <div class="note warn">
+    <span class="tag">Главное про Replit</span>
+    <p>У Replit есть <b>Autoscale</b> (дешёвый, засыпает без трафика) и <b>Reserved VM</b> (работает круглосуточно). Телеграм-бот с постоянным опросом и синхронизацией раз в 2 минуты — это <b>Reserved VM</b>. На Autoscale он будет спать и пропускать сообщения.</p>
+    <p>Reserved VM — примерно <b>$20 в месяц</b>. Autoscale ($1–2) подошёл бы, если переписать бота на вебхуки, но тогда добавляются холодные старты, а Telegram ждать не любит. Для рабочего инструмента компании это плохой размен.</p>
+  </div>
+
+  <h3>Порядок</h3>
+  <div class="step"><div class="step-n">01</div><div><b>Импортировать репозиторий</b><span>На Replit: Create → Import from GitHub → <code>Raazzyy/bot-automization</code>. Определится как Node.js.</span></div></div>
+  <div class="step"><div class="step-n">02</div><div><b>Завести базу</b><span>Встроенная база в файле для боя не годится — при передеплое данные могут потеряться. Берём бесплатный Postgres на <code>neon.tech</code> (хватает с запасом) и вписываем строку подключения в <code>DATABASE_URL</code>.</span></div></div>
+  <div class="step"><div class="step-n">03</div><div><b>Заполнить Secrets</b><span>В Replit это раздел Secrets, не файл. Туда: <code>BOT_TOKEN</code>, <code>LINKO_TOKEN</code>, <code>GEMINI_API_KEY</code>, <code>DATABASE_URL</code>, ID групп. Файл <code>.env</code> на сервер не кладём никогда.</span></div></div>
+  <div class="step"><div class="step-n">04</div><div><b>Развернуть</b><span>Deploy → <b>Reserved VM</b> → команда запуска <code>npm start</code>. Проверить, что в логах появилось «Бот слушает обновления».</span></div></div>
+  <div class="step"><div class="step-n">05</div><div><b>Выключить локальный бот</b><span>Два запущенных экземпляра будут драться за сообщения: Telegram отдаёт каждое только одному. Локальный останавливаем.</span></div></div>
+
+  <div class="note">
+    <span class="tag">Альтернатива, если $20 в месяц смущают</span>
+    <p>Обычный VPS в Ташкенте стоит дешевле и работает быстрее до Linko, но требует настройки руками: сервер, автозапуск, обновления. Replit дороже, зато деплой — это кнопка. На старте я бы взял Replit и вернулся к вопросу, когда проект устоится.</p>
+  </div>
+</section>
+
+<section>
+  <span class="sec-num">06</span>
+  <h2>Сколько это стоит в месяц</h2>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Статья</th><th>Тест</th><th>Бой</th><th>Комментарий</th></tr></thead>
+    <tbody>
+      <tr><td>Telegram Premium</td><td class="num">$5</td><td class="num">$5</td><td>на один аккаунт компании</td></tr>
+      <tr><td>Модель (Gemini)</td><td class="num"><span class="pill free">$0</span></td><td class="num">~$5</td><td>платный тариф — когда пойдут реальные данные</td></tr>
+      <tr><td>Хостинг (Replit Reserved VM)</td><td class="num"><span class="pill free">$0</span></td><td class="num">~$20</td><td>на тесте гоняем локально</td></tr>
+      <tr><td>База (Neon Postgres)</td><td class="num"><span class="pill free">$0</span></td><td class="num"><span class="pill free">$0</span></td><td>бесплатного тарифа хватает</td></tr>
+      <tr><td>Linko</td><td class="num">—</td><td class="num">—</td><td>уже оплачен отдельно</td></tr>
+    </tbody>
+    <tfoot><tr><td>Итого</td><td class="num">$5</td><td class="num">~$30</td><td></td></tr></tfoot>
+  </table>
+  </div>
+  <p style="font-size:14.5px;color:var(--ink-2)">Порядка 380 тысяч сумов в месяц в боевом режиме. Для сравнения: это заметно меньше зарплаты одного оператора, который сейчас вручную переписывает реквизиты из Linko и отвечает на «а масло есть?».</p>
+</section>
+
+<section>
+  <span class="sec-num">07</span>
+  <h2>Что делаем дальше</h2>
+  <div class="step"><div class="step-n">01</div><div><b>Вы: подключаете бота к аккаунту</b><span>Настройки → Telegram Business → Чат-боты → @Tesssttst_bot. Сразу исключить личные чаты.</span></div></div>
+  <div class="step"><div class="step-n">02</div><div><b>Вы: присылаете ключ Gemini</b><span>aistudio.google.com → Get API key. Две минуты, карта не нужна.</span></div></div>
+  <div class="step"><div class="step-n">03</div><div><b>Вы: экспортируете переписку</b><span>Telegram Desktop → Настройки → Продвинутые → Экспорт данных → JSON, личные чаты. Нужно для тона и проверок.</span></div></div>
+  <div class="step"><div class="step-n">04</div><div><b>Я: подключаю модель и инструменты</b><span>M3 целиком: диалог, поиск товара, цены, остатки, акции, передача менеджеру. Плюс консольный чат и набор проверок.</span></div></div>
+  <div class="step"><div class="step-n">05</div><div><b>Вместе: неделя в режиме «только слушаю»</b><span>Смотрим черновики в группе, правим тон, добавляем проверки.</span></div></div>
+  <div class="step"><div class="step-n">06</div><div><b>Переключаем на 10–15 клиентов</b><span>Только после того, как черновики перестанут вызывать вопросы.</span></div></div>
+
+  <div class="note crit">
+    <span class="tag">Напоминание про Linko</span>
+    <p>Всё выше не зависит от Linko — тесты идут на выдуманном каталоге. Но в бою бот без Linko бесполезен: он не узнает ни цен, ни остатков, ни заказов. Письмо в техподдержку про <code>403 External-api integration disabled</code> — по-прежнему самое важное из того, что нужно сделать.</p>
+  </div>
+</section>
+
+<footer>
+  <span>ООО «AKM Holdings Inc» · Ташкент</span>
+  <span>План запуска канала A · 08.09.2026</span>
+</footer>
+
+</div>

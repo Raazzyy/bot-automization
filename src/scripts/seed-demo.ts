@@ -9,7 +9,10 @@
  */
 import { migrate } from '../db/migrate.js';
 import { getDb } from '../db/index.js';
-import { markets, orders, orderItems, payments, esfQueue, outbox } from '../db/schema.js';
+import {
+  markets, orders, orderItems, payments, esfQueue, outbox,
+  products, prices, balances, promotions,
+} from '../db/schema.js';
 import { inArray, lt } from 'drizzle-orm';
 import { todayTashkent } from '../lib/money.js';
 
@@ -22,11 +25,16 @@ const DEMO_MARKETS = [
 ];
 
 const DEMO_ITEMS = [
-  { name: 'Масло подсолнечное 1 л', price: 24_500, amount: 20, unit: 'шт' },
-  { name: 'Сахар-песок 50 кг', price: 610_000, amount: 4, unit: 'меш' },
-  { name: 'Мука в/с 50 кг', price: 385_000, amount: 6, unit: 'меш' },
-  { name: 'Рис лазер 1 кг', price: 18_900, amount: 40, unit: 'кг' },
-  { name: 'Макароны спагетти 450 г', price: 7_400, amount: 60, unit: 'шт' },
+  { id: -11, name: 'Масло подсолнечное 1 л', price: 24_500, amount: 20, unit: 'шт', stock: 1400 },
+  { id: -12, name: 'Сахар-песок 50 кг', price: 610_000, amount: 4, unit: 'меш', stock: 90 },
+  { id: -13, name: 'Мука в/с 50 кг', price: 385_000, amount: 6, unit: 'меш', stock: 0 },
+  { id: -14, name: 'Рис лазер 1 кг', price: 18_900, amount: 40, unit: 'кг', stock: 2600 },
+  { id: -15, name: 'Макароны спагетти 450 г', price: 7_400, amount: 60, unit: 'шт', stock: 830 },
+];
+
+const DEMO_PROMOS = [
+  { id: -31, name: 'Скидка 10% на подсолнечное масло', discount: 10, days: 21 },
+  { id: -32, name: 'При заказе от 5 мешков риса — доставка бесплатно', discount: null, days: 10 },
 ];
 
 function daysBack(n: number): string {
@@ -43,12 +51,42 @@ async function main() {
   await db.delete(orders).where(lt(orders.id, 0));
   await db.delete(payments).where(lt(payments.id, 0));
   await db.delete(markets).where(lt(markets.id, 0));
+  await db.delete(prices).where(lt(prices.productId, 0));
+  await db.delete(balances).where(lt(balances.productId, 0));
+  await db.delete(products).where(lt(products.id, 0));
+  await db.delete(promotions).where(lt(promotions.id, 0));
   await db.delete(outbox).where(inArray(outbox.kind, ['esf_card', 'payment_card', 'esf_items']));
 
   for (const m of DEMO_MARKETS) {
     await db.insert(markets).values({
       id: m.id, name: m.name, inn: m.inn,
       phones: [m.phone], priceListId: 1, tm: '0',
+    });
+  }
+
+  // Товары, цены по прайсу 1 и остатки — без них агенту нечего искать
+  for (const it of DEMO_ITEMS) {
+    await db.insert(products).values({
+      id: it.id, name: it.name, measurementName: it.unit,
+      isActive: true, tm: '0',
+    });
+    await db.insert(prices).values({
+      priceListId: 1, productId: it.id, price: String(it.price), tm: '0',
+    });
+    await db.insert(balances).values({
+      stockId: 1, productId: it.id, balance: String(it.stock), tm: '0',
+    });
+  }
+
+  for (const p of DEMO_PROMOS) {
+    await db.insert(promotions).values({
+      id: p.id, name: p.name,
+      type: 'discount',
+      discountType: p.discount ? 'percent' : 'manual',
+      beginDate: daysBack(3),
+      tillDate: daysBack(-p.days),
+      discount: p.discount != null ? String(p.discount) : null,
+      isApplyAll: false, tm: '0',
     });
   }
 
@@ -86,6 +124,7 @@ async function main() {
       await db.insert(orderItems).values({
         id: itemId--,
         orderId: o.id,
+        productId: it.id,
         productName: it.name,
         amount: String(it.amount),
         price: String(it.price),
@@ -113,6 +152,8 @@ async function main() {
 
   console.log(`\n  Демо-данные готовы (${todayTashkent()}):`);
   console.log(`    точек: ${DEMO_MARKETS.length}`);
+  console.log(`    товаров: ${DEMO_ITEMS.length} (мука — с нулевым остатком, для проверки)`);
+  console.log(`    акций: ${DEMO_PROMOS.length}`);
   console.log(`    заказов: ${plan.length} — из них к ЭСФ подлежат 3`);
   console.log(`    перечислений: 2`);
   console.log(`\n  Дальше: npm run dev, затем в группе бухгалтеров команда /esf\n`);

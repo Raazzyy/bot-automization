@@ -22,9 +22,24 @@ async function create() {
     // PGlite сам родительский каталог не создаёт
     mkdirSync(dirname(dir), { recursive: true });
 
-    const client = new PGlite(dir);
-    await client.waitReady;
-    return drizzle(client, { schema });
+    try {
+      const client = new PGlite(dir);
+      await client.waitReady;
+      pglite = client;
+      return drizzle(client, { schema });
+    } catch (e) {
+      // PGlite падает невнятным сбоем WASM в двух разных случаях.
+      // Объясняем оба, иначе разбираться в этом мучительно.
+      throw new Error(
+        `Встроенная база в «${dir}» не открылась. Две обычные причины:\n`
+        + '   1. Параллельно запущен другой процесс — например «npm run dev».\n'
+        + '      PGlite открывается только одним процессом, остановите второй.\n'
+        + '   2. База повреждена жёсткой остановкой процесса.\n'
+        + '      Лечится так: удалить каталог .data и выполнить «npm run seed».\n'
+        + '   В бою этого нет: там обычный Postgres (DATABASE_URL=postgres://...).\n'
+        + `   Исходная ошибка: ${(e as Error).message}`,
+      );
+    }
   }
 
   const pg = await import('pg');
@@ -36,11 +51,25 @@ async function create() {
   return drizzle(pool, { schema });
 }
 
+let pglite: { close: () => Promise<void> } | null = null;
 let instance: Promise<Db> | null = null;
 
 export function getDb(): Promise<Db> {
   instance ??= create();
   return instance;
+}
+
+/**
+ * Штатно закрыть базу. Для PGlite это обязательно: процесс, убитый
+ * без закрытия, оставляет каталог в состоянии, из которого база
+ * больше не поднимается.
+ */
+export async function closeDb(): Promise<void> {
+  if (pglite) {
+    try { await pglite.close(); } catch { /* уже закрыта */ }
+    pglite = null;
+  }
+  instance = null;
 }
 
 export { schema };

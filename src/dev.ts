@@ -6,6 +6,7 @@
  */
 import { config } from './config.js';
 import { migrate } from './db/migrate.js';
+import { closeDb } from './db/index.js';
 import { createBot } from './bot/index.js';
 import { postNewOrders, postNewPayments } from './bot/esf.js';
 import { syncAll } from './linko/sync.js';
@@ -91,6 +92,10 @@ async function main() {
     log.info(`${signal} — останавливаюсь`);
     clearInterval(timer);
     if (bot) await bot.stop();
+    // Встроенную базу обязательно закрыть: убитый процесс оставляет
+    // каталог в состоянии, из которого она больше не поднимется.
+    await closeDb();
+    log.info('База закрыта, до свидания');
     process.exit(0);
   };
   process.once('SIGINT', () => void stop('SIGINT'));

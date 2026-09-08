@@ -48,6 +48,11 @@ const schema = z.object({
   // live     — работаем в бою
   MODE: z.enum(['dry_run', 'shadow', 'live']).default('dry_run'),
 
+
+  // --- Модель ---
+  GEMINI_API_KEY: z.string().default(''),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash-lite'),
+
   DATABASE_URL: z.string().default('pglite://.data/akm'),
   SYNC_INTERVAL_SEC: z.coerce.number().int().min(30).default(120),
   TZ_OFFSET_HOURS: z.coerce.number().default(5), // Ташкент UTC+5

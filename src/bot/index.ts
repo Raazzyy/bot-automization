@@ -14,6 +14,45 @@ import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } fr
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+/** Что именно прислали, если это не текст */
+type NonText = 'photo' | 'document' | 'video' | 'voice' | 'audio'
+  | 'sticker' | 'location' | 'contact' | 'other';
+
+function describeNonText(msg: unknown): NonText | null {
+  const m = msg as Record<string, unknown>;
+  if (m['text']) return null;
+  if (m['photo']) return 'photo';
+  if (m['document']) return 'document';
+  if (m['video']) return 'video';
+  if (m['voice']) return 'voice';
+  if (m['audio']) return 'audio';
+  if (m['sticker']) return 'sticker';
+  if (m['location'] || m['venue']) return 'location';
+  if (m['contact']) return 'contact';
+  return 'other';
+}
+
+const KIND_RU: Record<string, string> = {
+  photo: 'фото', document: 'документ', video: 'видео',
+  voice: 'голосовое', audio: 'аудио', sticker: 'стикер',
+  location: 'локацию', contact: 'контакт', other: 'вложение',
+};
+
+/**
+ * Короткое подтверждение получения. Разбирать документы бот не умеет
+ * и не должен: договоры и паспорта — работа человека.
+ */
+const ACK_BY_KIND: Record<string, string> = {
+  photo: 'Фото получили, сейчас посмотрим.',
+  document: 'Документы получили, передаю коллегам.',
+  video: 'Видео получили.',
+  voice: 'Голосовое получили, коллега прослушает и ответит.',
+  audio: 'Получили, передаю коллегам.',
+  location: 'Локацию записали, передам в доставку.',
+  contact: 'Контакт записали.',
+  other: 'Получили, передаю коллегам.',
+};
+
 export function createBot(): Bot {
   const bot = new Bot(config.BOT_TOKEN);
 
@@ -106,7 +145,8 @@ export function createBot(): Bot {
       tgMessageId: msg.message_id,
       direction: fromOwner ? 'out' : 'in',
       author: fromOwner ? 'human' : 'client',
-      text: msg.text ?? msg.caption ?? '[без текста]',
+      text: msg.text ?? msg.caption
+        ?? `[${KIND_RU[describeNonText(msg) ?? 'other'] ?? 'вложение'}]`,
       mode: config.MODE,
     });
 
@@ -148,8 +188,50 @@ export function createBot(): Bot {
       }
     }
 
-    // Готовим ответ моделью
-    const text = msg.text ?? '';
+    // Реальная переписка наполовину состоит из файлов, фото и локаций.
+    // Молча их терять нельзя: клиент прислал паспорт и ждёт реакции.
+    const text = msg.text ?? msg.caption ?? '';
+    const kind = describeNonText(msg);
+
+    if (!text && kind) {
+      // Стикеры — единственное, на что отвечать не надо
+      if (kind === 'sticker') return;
+
+      log.info(`Канал A ${chatId}: прислали ${kind} — передаю менеджеру`);
+
+      if (canSendToClients) {
+        await send(ctx.api, {
+          dedupeKey: `ack:${chatId}:${msg.message_id}`,
+          kind: 'a_channel_ack',
+          chatId,
+          text: ACK_BY_KIND[kind] ?? 'Получили, передаю коллегам.',
+          audience: 'client',
+          channel: 'A',
+          businessConnectionId: connId,
+        });
+      }
+
+      if (config.MANAGER_CHAT_ID) {
+        await send(ctx.api, {
+          dedupeKey: `draft:${chatId}:${msg.message_id}`,
+          kind: 'a_channel_draft',
+          chatId: config.MANAGER_CHAT_ID,
+          text: [
+            '<b>Канал A · нужен менеджер</b>',
+            `От: ${esc(ctx.from?.first_name ?? '?')}`
+              + (ctx.from?.username ? ` @${esc(ctx.from.username)}` : ''),
+            '',
+            `Прислали: <b>${KIND_RU[kind] ?? kind}</b>`,
+            '',
+            '<i>Бот файлы не разбирает — это работа человека.</i>',
+          ].join('\n'),
+          audience: 'staff',
+          channel: 'B',
+        });
+      }
+      return;
+    }
+
     if (!text) return;
 
     const cust = ctx.from

@@ -1,0 +1,31 @@
+{
+  "name": "akm-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Telegram-агент AKM Holdings: канал A (Business-аккаунт) + канал B (бот), интеграция с Linko",
+  "scripts": {
+    "check": "tsx src/scripts/check.ts",
+    "db:push": "drizzle-kit push",
+    "phones:import": "tsx src/scripts/import-phones.ts",
+    "sync": "tsx src/scripts/sync-once.ts",
+    "dev": "tsx watch src/dev.ts",
+    "start": "tsx src/dev.ts",
+    "seed": "tsx src/scripts/seed-demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.17",
+    "drizzle-orm": "^0.38.3",
+    "grammy": "^1.32.0",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.30.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

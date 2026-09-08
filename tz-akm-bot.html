@@ -1,0 +1,638 @@
+<title>Бот-агент AKM Holdings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600&family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+:root{
+  --paper:#F1F2EE;
+  --surface:#FBFBF9;
+  --surface-2:#E9EBE5;
+  --ink:#14201D;
+  --ink-2:#4C5751;
+  --ink-3:#7A857E;
+  --line:#D5D8D0;
+  --line-strong:#B8BDB4;
+  --accent:#12574A;
+  --accent-soft:#D9E7E2;
+  --alt:#3A4E86;
+  --alt-soft:#DCE2F1;
+  --warn:#8A5A0F;
+  --warn-soft:#F2E5CE;
+  --crit:#9A2B2B;
+  --crit-soft:#F3DDDA;
+  --ok:#2C6640;
+  --ok-soft:#DCEBDF;
+  --display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --body:"Golos Text","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#111614; --surface:#18201D; --surface-2:#212a26;
+    --ink:#E5EAE6; --ink-2:#A6B1AB; --ink-3:#7E8A84;
+    --line:#2B3531; --line-strong:#3D4844;
+    --accent:#57BCA3; --accent-soft:#17342E;
+    --alt:#8FA6DE; --alt-soft:#1E2740;
+    --warn:#D6A55A; --warn-soft:#332814;
+    --crit:#E08A84; --crit-soft:#3A211F;
+    --ok:#7FC08F; --ok-soft:#1B2E21;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#111614; --surface:#18201D; --surface-2:#212a26;
+  --ink:#E5EAE6; --ink-2:#A6B1AB; --ink-3:#7E8A84;
+  --line:#2B3531; --line-strong:#3D4844;
+  --accent:#57BCA3; --accent-soft:#17342E;
+  --alt:#8FA6DE; --alt-soft:#1E2740;
+  --warn:#D6A55A; --warn-soft:#332814;
+  --crit:#E08A84; --crit-soft:#3A211F;
+  --ok:#7FC08F; --ok-soft:#1B2E21;
+}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1020px;margin:0 auto;padding:0 28px 96px}
+@media(max-width:640px){.wrap{padding:0 18px 64px}}
+
+.masthead{border-bottom:1px solid var(--line-strong);padding:56px 0 26px;display:grid;gap:20px}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 18px}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(30px,5.4vw,50px);line-height:1.04;letter-spacing:-.028em;margin:0;text-wrap:balance}
+h1 .thin{color:var(--accent)}
+.deck{max-width:64ch;font-size:17.5px;color:var(--ink-2);margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:10px 28px;font-family:var(--mono);font-size:12px;color:var(--ink-3);padding-top:4px}
+.meta b{color:var(--ink-2);font-weight:500}
+
+section{padding-top:56px}
+h2{font-family:var(--body);font-weight:700;font-size:24px;letter-spacing:-.015em;margin:0 0 6px;text-wrap:balance}
+.sec-num{font-family:var(--display);font-weight:500;font-size:12px;letter-spacing:.06em;color:var(--accent);display:block;margin-bottom:10px}
+h3{font-weight:600;font-size:17px;margin:32px 0 8px;letter-spacing:-.01em}
+p{max-width:70ch;margin:0 0 14px}
+.lede{color:var(--ink-2);max-width:68ch}
+ul,ol{max-width:68ch;padding-left:20px;margin:0 0 14px}
+li{margin-bottom:7px}
+li::marker{color:var(--ink-3)}
+code{font-family:var(--mono);font-size:.86em;background:var(--surface-2);padding:1px 5px;border-radius:3px;word-break:break-word}
+a{color:var(--accent)}
+
+.note{border-left:3px solid var(--line-strong);background:var(--surface);padding:14px 18px;margin:0 0 18px;font-size:15px;max-width:74ch}
+.note p{margin:0 0 8px}
+.note p:last-child{margin:0}
+.note .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:6px;color:var(--ink-3)}
+.note.crit{border-left-color:var(--crit);background:var(--crit-soft)}
+.note.crit .tag{color:var(--crit)}
+.note.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.note.warn .tag{color:var(--warn)}
+.note.ok{border-left-color:var(--ok);background:var(--ok-soft)}
+.note.ok .tag{color:var(--ok)}
+.note.alt{border-left-color:var(--alt);background:var(--alt-soft)}
+.note.alt .tag{color:var(--alt)}
+
+.tw{overflow-x:auto;margin:0 0 20px;border:1px solid var(--line);background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:540px}
+th{text-align:left;font-family:var(--mono);font-weight:500;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);padding:11px 14px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.m,th.m{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+td.c{text-align:center}
+
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.pill.get{background:var(--accent-soft);color:var(--accent)}
+.pill.post{background:var(--warn-soft);color:var(--warn)}
+.pill.yes{background:var(--ok-soft);color:var(--ok)}
+.pill.no{background:var(--crit-soft);color:var(--crit)}
+.pill.part{background:var(--warn-soft);color:var(--warn)}
+.chan{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:2px 8px;border-radius:2px;white-space:nowrap;font-weight:500}
+.chan.a{background:var(--accent-soft);color:var(--accent)}
+.chan.b{background:var(--alt-soft);color:var(--alt)}
+
+/* channel split */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:10px 0 24px}
+@media(max-width:720px){.split{grid-template-columns:1fr}}
+.ch{border:1px solid var(--line);background:var(--surface);padding:18px 20px;display:grid;gap:10px;align-content:start}
+.ch.a{border-top:3px solid var(--accent)}
+.ch.b{border-top:3px solid var(--alt)}
+.ch h4{margin:0;font-size:18px;font-weight:700;letter-spacing:-.015em}
+.ch .who{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);letter-spacing:.05em}
+.ch p{margin:0;font-size:14.5px;color:var(--ink-2);max-width:none}
+.ch ul{margin:0;padding-left:18px;font-size:14px}
+.ch li{margin-bottom:5px}
+
+.arch{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr;gap:0;margin:8px 0 24px;font-size:13.5px}
+.arch-col{display:grid;gap:10px;align-content:start}
+.arch-h{font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-3);padding-bottom:4px}
+.node{background:var(--surface);border:1px solid var(--line);padding:10px 12px;line-height:1.4}
+.node b{display:block;font-weight:600;font-size:14px}
+.node span{color:var(--ink-2);font-size:12.5px}
+.node.core{border-color:var(--accent);background:var(--accent-soft)}
+.node.altn{border-color:var(--alt)}
+.arrow{display:flex;align-items:center;justify-content:center;color:var(--line-strong);font-size:18px;padding-top:26px}
+@media(max-width:760px){.arch{grid-template-columns:1fr;gap:14px}.arrow{padding:0;transform:rotate(90deg)}}
+
+.mod{border-top:1px solid var(--line-strong);padding-top:22px;margin-top:38px}
+.mod-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:8px}
+.mod-id{font-family:var(--display);font-weight:600;font-size:13px;color:var(--accent);letter-spacing:.02em}
+.mod-head h3{margin:0;font-size:21px;font-weight:700;letter-spacing:-.015em}
+.mod-sub{color:var(--ink-2);font-size:15px;max-width:66ch;margin:0 0 18px}
+
+.flow{list-style:none;padding:0;margin:0 0 18px;counter-reset:step;max-width:72ch}
+.flow li{counter-increment:step;display:grid;grid-template-columns:26px 1fr;gap:12px;margin-bottom:9px;font-size:14.5px}
+.flow li::before{content:counter(step);font-family:var(--mono);font-size:11px;color:var(--ink-3);border:1px solid var(--line-strong);width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin-top:2px}
+
+.tg{background:var(--surface);border:1px solid var(--line);border-radius:2px 12px 12px 12px;padding:14px 16px;max-width:450px;font-size:14px;line-height:1.5;margin:0 0 18px}
+.tg.acc{border-left:3px solid var(--accent)}
+.tg.bot{border-left:3px solid var(--alt)}
+.tg .tg-from{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:8px}
+.tg dl{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:8px 0}
+.tg dt{color:var(--ink-3);font-size:13px}
+.tg dd{margin:0;font-variant-numeric:tabular-nums;font-size:13.5px}
+.tg .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.tg .btn{border:1px solid var(--line-strong);padding:5px 11px;font-size:12.5px;color:var(--alt);border-radius:3px}
+.tg .lnk{color:var(--accent);text-decoration:underline}
+
+.road{display:grid;gap:0;margin:8px 0 20px}
+.road-row{display:grid;grid-template-columns:82px 1fr 140px;gap:18px;padding:15px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.road-row:first-child{border-top:1px solid var(--line-strong)}
+.road-w{font-family:var(--mono);font-size:12px;color:var(--accent);white-space:nowrap}
+.road-t b{display:block;font-weight:600;font-size:15.5px}
+.road-t span{color:var(--ink-2);font-size:14px}
+.road-o{font-size:12.5px;color:var(--ink-3);text-align:right}
+@media(max-width:640px){.road-row{grid-template-columns:1fr;gap:4px}.road-o{text-align:left}}
+
+.q{display:grid;grid-template-columns:30px 1fr;gap:14px;padding:14px 0;border-bottom:1px solid var(--line);max-width:74ch}
+.q:first-of-type{border-top:1px solid var(--line-strong)}
+.q-n{font-family:var(--mono);font-size:12px;color:var(--ink-3);padding-top:2px}
+.q b{font-weight:600;display:block;margin-bottom:2px}
+.q span{color:var(--ink-2);font-size:14.5px}
+
+footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line-strong);font-family:var(--mono);font-size:11.5px;color:var(--ink-3);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">
+    <span>ООО «AKM Holdings Inc»</span>
+    <span>Техническое задание</span>
+    <span>Черновик v2 · два канала</span>
+  </div>
+  <h1>Telegram-агент <span class="thin">AKM × Linko</span></h1>
+  <p class="deck">Один мозг, два канала: автоответчик прямо внутри рабочего аккаунта, где клиенты уже пишут, и отдельный бот для групп, каталога и корзины. Обе стороны ходят в Linko через общее ядро — заказы и перечисления бухгалтерам под ЭСФ, приём заказов из переписки, возврат «уснувших» клиентов и напоминания о долгах.</p>
+  <div class="meta">
+    <span><b>Заказчик:</b> Акмаль</span>
+    <span><b>Исполнитель:</b> Danila</span>
+    <span><b>Дата:</b> 08.09.2026</span>
+    <span><b>Контур:</b> sfademo.linko.uz</span>
+  </div>
+</header>
+
+<section id="checked">
+  <span class="sec-num">01</span>
+  <h2>Что проверено до начала работ</h2>
+  <p class="lede">Документация Linko изучена до уровня полей, возможности Telegram Business — до уровня ограничений API. Факты ниже определяют архитектуру, их нужно принять до того, как писать код.</p>
+
+  <div class="note crit">
+    <span class="tag">Сначала — безопасность</span>
+    <p>Админ-токен Linko был отправлен открытым текстом в общий Telegram-чат. Его нужно отозвать и выпустить заново через техподдержку, а новый — не пересылать в мессенджерах. Токен даёт полный доступ к клиентской базе, ценам и заказам.</p>
+    <p>Демо-токен от <code>sfademo</code> для боевого контура не подойдёт — нужен второй токен на рабочий сервер.</p>
+  </div>
+
+  <h3>Telegram: автоответчик в аккаунте — это Telegram Business</h3>
+  <p>Идея «подрубить автоответчик прямо в аккаунт» реализуется штатно и легально: аккаунт с Telegram Premium включает режим Business и подключает к себе нашего бота. После этого бот получает переписку аккаунта и отвечает <b>от имени аккаунта</b> — клиент видит обычное сообщение от AKM, а не «бота». Ничего подключать клиентам не нужно: они продолжают писать туда же, куда писали всегда.</p>
+  <p>Технически это апдейты <code>business_message</code> и отправка с параметром <code>business_connection_id</code>. Владелец аккаунта в любой момент пишет сам — бот видит это и отходит в сторону.</p>
+
+  <div class="note crit">
+    <span class="tag">Четыре ограничения, которые нельзя обойти</span>
+    <p><b>1. Только личные чаты.</b> Business-соединение не работает в группах и каналах. Значит группы бухгалтеров и финансистов — только через обычного бота, никак иначе.</p>
+    <p><b>2. Никаких кнопок.</b> Telegram запрещает inline-клавиатуры в сообщениях от имени бизнес-аккаунта. Всё общение в этом канале — чистый текст. Кнопки, каталог и корзина живут только в боте.</p>
+    <p><b>3. Нельзя пересылать.</b> Бот не может переслать или скопировать сообщение из управляемого чата наружу. Чтобы показать менеджеру жалобу клиента, мы отправляем в группу текст из своей базы, а не форвард.</p>
+    <p><b>4. Аккаунт привязан к человеку.</b> Это чей-то личный Telegram с личной перепиской. Нужен отдельный корпоративный номер под Premium, иначе бот будет отвечать в личных чатах владельца, а при его уходе канал уйдёт вместе с ним.</p>
+  </div>
+
+  <div class="note ok">
+    <span class="tag">Что этот канал даёт взамен</span>
+    <p>Бот, подключённый к аккаунту, может <b>написать клиенту первым</b> — по <code>user_chat_id</code>, даже если клиент никогда не запускал нашего бота. Это снимает главное препятствие для модуля реактивации: раньше он работал бы только по тем, кого агенты вручную подключили, теперь — по всей базе, кто когда-либо писал в аккаунт.</p>
+  </div>
+
+  <div class="note warn">
+    <span class="tag">Уточнить на пилоте</span>
+    <p>В сообществе разработчиков упоминается 24-часовое окно на ответ в бизнес-чатах по аналогии с WhatsApp Business. В официальной документации такого ограничения нет. Это проверяется на пилоте эмпирически в первую неделю; если окно существует — проактивные сообщения M4 уходят через бота, а не через аккаунт.</p>
+  </div>
+
+  <div class="note">
+    <span class="tag">Про userbot</span>
+    <p>Есть второй способ «оживить аккаунт» — userbot на MTProto (Telethon, Pyrogram) с логином под сессией живого пользователя. Он умеет больше, но нарушает условия Telegram и регулярно заканчивается блокировкой номера. С рабочим аккаунтом, на котором висит вся клиентская переписка, этот риск неприемлем. Работаем только через Business API.</p>
+  </div>
+
+  <h3>Linko: вебхуков нет — только опрос</h3>
+  <p>Linko не умеет пушить события наружу. Единственный способ узнать о новом заказе или оплате — периодически опрашивать API. Для этого есть курсор <code>last_tm</code> (Unix-время последнего изменения): сохраняем максимальный <code>tm</code> из ответа и передаём его в следующий запрос — приходят только изменения. Отсюда: синхронизация раз в 2–5 минут, а не «мгновенно». Для ЭСФ этого хватает с запасом.</p>
+
+  <h3>Linko: поля «долг» в API нет</h3>
+  <p>Ни в <code>markets</code>, ни в <code>contracts</code> нет баланса, кредитного лимита или отсрочки. Долг придётся считать самим:</p>
+  <div class="note">
+    <span class="tag">Формула дебиторки по точке</span>
+    <p><code>долг = Σ total_price(заказы: status ∈ delivered, given) − Σ amount(оплаты: status = accepted)</code></p>
+    <p>Просрочка — заказы, у которых <code>payment_date</code> уже прошёл, а накопленных оплат по точке не хватает на их покрытие (гасим по FIFO, от старых к новым).</p>
+  </div>
+  <p>Цифра, посчитанная так, должна сойтись с бухгалтерией до копейки на пилоте из 10 контрагентов. Не сойдётся — источником правды становится 1С, и модуль долгов берёт данные оттуда.</p>
+
+  <h3>Linko: заказ нельзя создать «от клиента»</h3>
+  <p>Метод <code>sync_order</code> обязательно требует четыре ссылки: <code>market</code>, <code>stock</code>, <code>agent</code>, <code>delivery_man</code>. У бота должна быть своя учётная запись агента в Linko (условно «Telegram-бот»), склад по умолчанию и правило назначения экспедитора. Иначе заказы из Telegram повиснут на живом агенте и сломают ему статистику и мотивацию.</p>
+
+  <h3>Методы Linko, которые реально используются</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Задача</th><th class="m">Метод <code>/api/v1/integration/external-api/…</code></th><th>Тип</th><th>Модуль</th></tr></thead>
+    <tbody>
+      <tr><td>Заказы для ЭСФ</td><td class="m">orders/</td><td><span class="pill get">GET</span></td><td class="m">M1</td></tr>
+      <tr><td>Отметка «выгружен»</td><td class="m">order_synced/</td><td><span class="pill post">POST</span></td><td class="m">M1</td></tr>
+      <tr><td>Перечисления и оплаты</td><td class="m">payments/</td><td><span class="pill get">GET</span></td><td class="m">M1, M5</td></tr>
+      <tr><td>Клиенты (торговые точки)</td><td class="m">markets/</td><td><span class="pill get">GET</span></td><td class="m">M2–M5</td></tr>
+      <tr><td>Товары и типы</td><td class="m">products/, product_types/</td><td><span class="pill get">GET</span></td><td class="m">M2, M3</td></tr>
+      <tr><td>Остатки на складах</td><td class="m">product_balances/</td><td><span class="pill get">GET</span></td><td class="m">M2</td></tr>
+      <tr><td>Прайс-листы и цены</td><td class="m">price_lists/, price_list_items/</td><td><span class="pill get">GET</span></td><td class="m">M2, M3</td></tr>
+      <tr><td>Акции</td><td class="m">promotions/</td><td><span class="pill get">GET</span></td><td class="m">M3, M4</td></tr>
+      <tr><td>Создание заказа из Telegram</td><td class="m">sync_order/</td><td><span class="pill post">POST</span></td><td class="m">M2</td></tr>
+      <tr><td>Возвраты</td><td class="m">order_returns/</td><td><span class="pill get">GET</span></td><td class="m">M5</td></tr>
+      <tr><td>Агенты и экспедиторы</td><td class="m">users/</td><td><span class="pill get">GET</span></td><td class="m">M1, M2</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:14.5px;color:var(--ink-2)">Авторизация — заголовок <code>Authorization: External {token}</code>. Пагинация — <code>limit</code> (максимум 1000, по умолчанию 25) и <code>offset</code>; страницы кончились, когда вернулось меньше <code>limit</code>. Фильтры по заказам: <code>begin_date</code>, <code>end_date</code>, <code>status</code>, <code>market</code>, <code>user</code>, <code>stock</code>, <code>division</code>, <code>payment_type</code>.</p>
+</section>
+
+<section id="channels">
+  <span class="sec-num">02</span>
+  <h2>Два канала</h2>
+  <p class="lede">Это главное решение проекта. Каналы не дублируют друг друга — каждый умеет то, чего физически не может второй, и оба обслуживаются одним ядром.</p>
+
+  <div class="split">
+    <div class="ch a">
+      <span class="chan a">Канал A</span>
+      <h4>Внутри аккаунта</h4>
+      <div class="who">Telegram Business · личные чаты клиентов</div>
+      <p>Клиенты пишут туда же, куда писали всегда. Ответ приходит от имени AKM. Онбординг не нужен вообще.</p>
+      <ul>
+        <li>Диалог, вопросы по товарам и ценам</li>
+        <li>Статус заказа и доставки</li>
+        <li>Проактивные сообщения «не закончился ли товар»</li>
+        <li>Повтор прошлого заказа по тексту</li>
+        <li>Мгновенный перехват живым менеджером</li>
+      </ul>
+    </div>
+    <div class="ch b">
+      <span class="chan b">Канал B</span>
+      <h4>Отдельный бот</h4>
+      <div class="who">@akm_bot · группы и структурный ввод</div>
+      <p>Всё, где нужны кнопки, таблицы и рабочие группы сотрудников. Клиент попадает сюда ссылкой из канала A.</p>
+      <ul>
+        <li>Группа бухгалтеров: карточки ЭСФ с кнопками</li>
+        <li>Группа финансистов: сводки по долгам</li>
+        <li>Каталог, корзина, подтверждение заказа</li>
+        <li>Mini App с ассортиментом и остатками</li>
+        <li>Кабинет менеджера и агента</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Что где работает</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Возможность</th><th class="c">Канал A · аккаунт</th><th class="c">Канал B · бот</th></tr></thead>
+    <tbody>
+      <tr><td>Личные чаты с клиентами</td><td class="c"><span class="pill yes">да</span></td><td class="c"><span class="pill part">нужен /start</span></td></tr>
+      <tr><td>Группы сотрудников</td><td class="c"><span class="pill no">нет</span></td><td class="c"><span class="pill yes">да</span></td></tr>
+      <tr><td>Написать клиенту первым</td><td class="c"><span class="pill yes">да</span></td><td class="c"><span class="pill no">нет</span></td></tr>
+      <tr><td>Inline-кнопки</td><td class="c"><span class="pill no">запрещены</span></td><td class="c"><span class="pill yes">да</span></td></tr>
+      <tr><td>Mini App, каталог, корзина</td><td class="c"><span class="pill no">нет</span></td><td class="c"><span class="pill yes">да</span></td></tr>
+      <tr><td>Пересылка сообщений наружу</td><td class="c"><span class="pill no">нет</span></td><td class="c"><span class="pill yes">да</span></td></tr>
+      <tr><td>Выглядит как живой человек</td><td class="c"><span class="pill yes">да</span></td><td class="c"><span class="pill no">нет</span></td></tr>
+      <tr><td>Онбординг клиента</td><td class="c"><span class="pill yes">не нужен</span></td><td class="c"><span class="pill part">нужен</span></td></tr>
+      <tr><td>Требует Telegram Premium</td><td class="c"><span class="pill part">да</span></td><td class="c"><span class="pill yes">нет</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Мост между каналами</h3>
+  <p>Кнопок в канале A нет, но ссылки в тексте работают. Поэтому переход выглядит так: бот пишет от имени аккаунта обычным текстом и даёт диплинк вида <code>t.me/akm_bot?start=repeat_5001</code>. Клиент нажимает, попадает в бота с уже собранной корзиной, подтверждает кнопкой. Оба канала пишут в одну базу — для ядра это один и тот же клиент и одна и та же корзина.</p>
+  <p>Простые сценарии до бота не доходят вообще: «повторить прошлый заказ» подтверждается словом в переписке, потому что состав известен и его достаточно перечислить текстом.</p>
+
+  <div class="note alt">
+    <span class="tag">Настройка канала A — обязательные пункты</span>
+    <p><b>Исключения.</b> В настройках Business задаются получатели: только существующие чаты, только новые, контакты, не-контакты, плюс список исключений. Личные чаты владельца исключаются поимённо до первого запуска — это не опция, а условие включения.</p>
+    <p><b>Права бота.</b> Выдаём минимум: читать и отвечать. Права на удаление сообщений, смену имени аккаунта, подарки и истории — не выдаём.</p>
+    <p><b>Стоп-слово.</b> Владелец пишет в чат сам — бот замолкает в этом диалоге на 24 часа. Отдельная команда полностью выключает бота в конкретном чате навсегда.</p>
+  </div>
+
+  <div class="note warn">
+    <span class="tag">Решение заказчика: раскрывать или нет</span>
+    <p>В канале A клиент по умолчанию не знает, что ему отвечает программа. Рекомендую мягкое раскрытие в первом сообщении диалога — «на связи автопомощник AKM, менеджер подключится при необходимости». Клиент, который сам догадается, что его вводили в заблуждение, теряет доверие не к боту, а к компании; клиент, которого предупредили, спокойно пользуется. Финальное решение за вами — на техническую часть оно не влияет.</p>
+  </div>
+</section>
+
+<section id="arch">
+  <span class="sec-num">03</span>
+  <h2>Архитектура</h2>
+  <p class="lede">Ядро одно. Каналы для него — просто способы доставки: сменить или добавить канал можно, не трогая бизнес-логику.</p>
+
+  <div class="arch">
+    <div class="arch-col">
+      <div class="arch-h">Вход</div>
+      <div class="node"><b>Linko API</b><span>опрос по <code>last_tm</code> каждые 2–5 мин</span></div>
+      <div class="node"><b>Канал A</b><span><code>business_message</code> из аккаунта</span></div>
+      <div class="node altn"><b>Канал B</b><span>вебхук бота: чаты и группы</span></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="arch-col">
+      <div class="arch-h">Ядро</div>
+      <div class="node core"><b>Роутер каналов</b><span>единая личность клиента для A и B</span></div>
+      <div class="node core"><b>Синхронизатор</b><span>курсоры, дедупликация, ретраи</span></div>
+      <div class="node core"><b>База (Postgres)</b><span>зеркало Linko + диалоги и рассылки</span></div>
+      <div class="node core"><b>AI-агент</b><span>диалог через набор инструментов</span></div>
+      <div class="node core"><b>Планировщик</b><span>реактивация, долги, дайджесты</span></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="arch-col">
+      <div class="arch-h">Выход</div>
+      <div class="node"><b>Клиент в аккаунте</b><span>текст от имени AKM</span></div>
+      <div class="node altn"><b>Группа бухгалтеров</b><span>карточки ЭСФ с кнопками</span></div>
+      <div class="node altn"><b>Группа финансистов</b><span>долги и просрочка</span></div>
+      <div class="node"><b>Linko</b><span>новые заказы через <code>sync_order</code></span></div>
+    </div>
+  </div>
+
+  <p>Роутер каналов — не украшение, а необходимость. Один и тот же человек пишет в аккаунт (канал A, у него свой <code>chat_id</code>) и заходит в бота по ссылке (канал B, другой <code>chat_id</code>, но тот же <code>user_id</code>). Ядро обязано понимать, что это один клиент и одна корзина, иначе он соберёт заказ в переписке, перейдёт по ссылке и увидит пустоту.</p>
+
+  <h3>Стек</h3>
+  <p>Рекомендую TypeScript: Next.js на Vercel (оба вебхука — обычные routes, Cron из коробки, очередь — Vercel Queues), Postgres (Neon) как основная база, Redis (Upstash) для блокировок и антиспам-счётчиков, <code>grammY</code> для Telegram (у него готовая поддержка business-режима), AI SDK v6 через AI Gateway для модели. Ни одного своего сервера, деплой — <code>git push</code>.</p>
+  <p>Альтернатива — Python (<code>aiogram 3</code> + FastAPI + APScheduler) на VPS в Ташкенте. Она становится обязательной, если боевой Linko закрыт от внешнего интернета или если данные клиентов нельзя вывозить за пределы Узбекистана. Это первый вопрос из раздела 09.</p>
+
+  <div class="note warn">
+    <span class="tag">Обязательное правило</span>
+    <p>Все деньги — в целых сумах, тип <code>numeric</code>, никаких <code>float</code>. Все даты внутри системы — UTC, наружу показываем Ташкент (UTC+5). Каждый запрос в Linko и каждое отправленное сообщение с указанием канала пишутся в лог — без этого разбор спорной ситуации с клиентом невозможен.</p>
+  </div>
+</section>
+
+<section id="modules">
+  <span class="sec-num">04</span>
+  <h2>Функциональные модули</h2>
+  <p class="lede">Пять модулей ставятся независимо друг от друга. У каждого явно указан канал — от него зависит, что модуль может себе позволить.</p>
+
+  <article class="mod">
+    <div class="mod-head"><span class="mod-id">M1</span><h3>ЭСФ-конвейер: заказы и перечисления бухгалтерам</h3><span class="chan b">Канал B</span></div>
+    <p class="mod-sub">Бухгалтер перестаёт вручную заходить в Linko и переписывать реквизиты. Каждый заказ и каждое перечисление приходят готовой карточкой в рабочую группу. Только бот — в группах business-соединение не работает.</p>
+    <ol class="flow">
+      <li>Каждые 2 минуты синхронизатор запрашивает <code>orders/</code> с курсором <code>last_tm</code> и <code>payments/</code> с фильтром <code>payment_type=bank</code>, <code>status=accepted</code> — это и есть «перечисления».</li>
+      <li>Новые записи сверяются с локальной базой по <code>uuid</code>: повтор не публикуется никогда, даже если Linko отдал запись дважды.</li>
+      <li>В группу бухгалтеров уходит карточка: точка, ИНН, номер и дата заказа, сумма, скидка, состав, тип оплаты, агент.</li>
+      <li>Бухгалтер выставляет ЭСФ и нажимает «Выставлен» — бот вызывает <code>order_synced/</code> и помечает запись у себя.</li>
+      <li>Кнопка не нажата за 24 часа — карточка всплывает повторно с пометкой «просрочено».</li>
+      <li>Каждый день в 18:00 — сводка: выставлено, в работе, просрочено.</li>
+    </ol>
+
+    <div class="tg bot">
+      <div class="tg-from">Канал B · бот → группа «Бухгалтерия»</div>
+      <b>Заказ №5001 · к выставлению ЭСФ</b>
+      <dl>
+        <dt>Точка</dt><dd>MARKET 1</dd>
+        <dt>ИНН</dt><dd>308057864</dd>
+        <dt>Дата</dt><dd>20.02.2026 · доставка 21.02</dd>
+        <dt>Оплата</dt><dd>перечисление</dd>
+        <dt>Позиций</dt><dd>7</dd>
+        <dt>Скидка</dt><dd>145 000 сум</dd>
+        <dt>Сумма</dt><dd>8 420 000 сум</dd>
+      </dl>
+      <div class="btns"><span class="btn">ЭСФ выставлен</span><span class="btn">Состав заказа</span><span class="btn">Проблема</span></div>
+    </div>
+
+    <p><b>Границы v1:</b> бот только уведомляет, ЭСФ выставляет человек. Автоматическая выгрузка в Didox / my.soliq — отдельный этап, его нельзя оценивать, пока не выбран оператор ЭДО и не проверено, что у него есть API и подписанный договор.</p>
+  </article>
+
+  <article class="mod">
+    <div class="mod-head"><span class="mod-id">M2</span><h3>Приём заказа и заведение в Linko</h3><span class="chan a">A</span><span class="chan b">B</span></div>
+    <p class="mod-sub">Единственный модуль, который живёт в обоих каналах: разговор идёт в аккаунте, а корзина собирается там, где есть кнопки. Заказ немедленно появляется в Linko и дальше идёт обычным маршрутом — сборка, экспедитор, ЭСФ через M1.</p>
+
+    <h3 style="margin-top:8px">Путь 1 · повтор заказа, целиком в аккаунте</h3>
+    <ol class="flow">
+      <li>Клиент пишет в аккаунт что-то вроде «повтори прошлый» или отвечает на проактивное сообщение M4.</li>
+      <li>Бот опознаёт клиента по <code>user_id</code> из базы, показывает состав прошлого заказа текстом и итоговую сумму.</li>
+      <li>Клиент подтверждает словом. Формулировка подтверждения и время фиксируются в логе — это и есть согласие.</li>
+      <li>Ядро вызывает <code>sync_order</code>, номер заказа приходит клиенту тем же текстом.</li>
+    </ol>
+
+    <h3>Путь 2 · новый заказ, через бота</h3>
+    <ol class="flow">
+      <li>Клиент хочет собрать заказ с нуля — бот в аккаунте даёт ссылку <code>t.me/akm_bot?start=cart</code>.</li>
+      <li>В канале B открывается каталог: поиск по названию, категории из <code>product_types</code>, «мой прошлый заказ» одной кнопкой.</li>
+      <li>Цены берутся из прайс-листа, привязанного к точке, а не из общего. Позиции с нулевым остатком по <code>product_balances</code> помечены «нет в наличии» и в заказ не попадают.</li>
+      <li>Подтверждение кнопкой «Подтверждаю» — бот показывает итог со скидкой и датой доставки.</li>
+      <li><code>POST sync_order</code>: статус <code>not_delivered</code>, склад по умолчанию, агент «Telegram-бот», экспедитор по правилу назначения.</li>
+      <li>Ответ Linko с <code>id</code> сохраняется и показывается клиенту как номер заказа. Ошибка — заказ уходит менеджеру, клиенту говорится честно, что заказ принят и его подтвердят вручную.</li>
+    </ol>
+
+    <h3>Опознание клиента</h3>
+    <p>В канале A клиент опознаётся сразу — у нас есть его <code>user_id</code> и история переписки аккаунта. Если этот <code>user_id</code> ещё не связан с точкой в Linko, бот один раз просит номер телефона и ищет по <code>market_phones</code> с нормализацией в <code>+998XXXXXXXXX</code>. Номер не найден — заявка уходит менеджеру на ручную привязку, а не отбрасывается. Один человек может отвечать за несколько точек: тогда бот спрашивает, на какую точку заказ.</p>
+
+    <div class="note warn">
+      <span class="tag">Правило, которое нельзя нарушать</span>
+      <p>Модель никогда не создаёт заказ сама. Она собирает корзину, а <code>sync_order</code> вызывается кодом только после явного подтверждения — кнопкой в канале B или словом в канале A. Между корзиной и Linko всегда стоит человек.</p>
+    </div>
+  </article>
+
+  <article class="mod">
+    <div class="mod-head"><span class="mod-id">M3</span><h3>Диалог с клиентом, товары и акции</h3><span class="chan a">Канал A</span></div>
+    <p class="mod-sub">Основная работа автоответчика в аккаунте: отвечает на вопросы по ассортименту, ценам и статусу заказа, предлагает акции — но только те, что реально действуют в Linko.</p>
+    <p>Агент работает не «свободным чатом», а через фиксированный набор инструментов: <code>найти_товар</code>, <code>цена_для_точки</code>, <code>остаток</code>, <code>мои_заказы</code>, <code>статус_заказа</code>, <code>действующие_акции</code>, <code>собрать_корзину</code>, <code>позвать_менеджера</code>. Всё, что нельзя получить инструментом, агент не отвечает — он передаёт вопрос менеджеру.</p>
+    <ul>
+      <li><b>Языки:</b> узбекский (латиница и кириллица) и русский, ответ на языке обращения. Это не опция — половина переписки в этом бизнесе на узбекском.</li>
+      <li><b>Формат ответа:</b> короткий текст без разметки и кнопок. Сообщение уходит от имени живого аккаунта, поэтому оно должно читаться как written человеком: без списков со звёздочками и без «Здравствуйте! Я ваш виртуальный ассистент».</li>
+      <li><b>Акции:</b> из <code>promotions/</code> с проверкой <code>begin_date ≤ сегодня ≤ till_date</code> и области действия. Придумывать акции запрещено.</li>
+      <li><b>Цены:</b> только из прайса точки. Инструмент не вернул цену — «уточню у менеджера», а не оценка по памяти.</li>
+      <li><b>Передача человеку:</b> по слову «менеджер», при жалобе, при разговоре о деньгах и долгах, после двух неудачных попыток понять запрос. В группу менеджеров уходит текст обращения из нашей базы (переслать нельзя) со ссылкой на чат. Менеджер отвечает прямо в том же диалоге аккаунта — бот замолкает на 24 часа автоматически, потому что видит сообщение владельца.</li>
+    </ul>
+    <div class="note ok">
+      <span class="tag">Почему это лучше отдельного бота</span>
+      <p>Передача менеджеру здесь бесшовная: не «перевожу вас на оператора», а просто в переписку вступает человек с того же аккаунта. Клиент вообще не замечает переключения — для него это один непрерывный диалог с AKM.</p>
+    </div>
+  </article>
+
+  <article class="mod">
+    <div class="mod-head"><span class="mod-id">M4</span><h3>Возврат «уснувших» клиентов</h3><span class="chan a">Канал A</span></div>
+    <p class="mod-sub">Модуль, ради которого канал A и нужен: бот пишет первым по всей базе, где есть переписка, — без подключения клиентов и без QR-кодов на накладных.</p>
+    <p>Никакого обучения модели не нужно — нужна честная статистика по каждой точке за последние 6 месяцев:</p>
+    <ol class="flow">
+      <li>По каждой точке считается медианный интервал между заказами, а по каждому товару внутри точки — свой интервал и средний объём.</li>
+      <li>Точка попадает в список, если с последнего заказа прошло больше <code>медиана × 1.5</code> и при этом сделано минимум 3 заказа за период (иначе медиана — шум).</li>
+      <li>Отдельно считается «товар закончился»: с последней отгрузки конкретной позиции прошло больше её типичного цикла.</li>
+      <li>Бот пишет от имени аккаунта коротким текстом: обычно берут вот это, в прошлый раз было столько-то, сейчас на него акция — оформить повтор?</li>
+      <li>Согласие словом ведёт в путь 1 модуля M2. «Хочу другое» — ссылка на каталог в боте. Отказ фиксируется, и точка молчит 30 дней.</li>
+    </ol>
+    <div class="tg acc">
+      <div class="tg-from">Канал A · от имени аккаунта AKM</div>
+      Салом, Азиз ака! Обычно вы заказываете раз в 10 дней, а последний заказ был 24 дня назад — не закончился ли товар?<br><br>
+      В прошлый раз брали 20 уп. и 10 уп. основных позиций, сумма вышла 4 180 000 сум. На одну из них сейчас скидка 10% до 30.09.<br><br>
+      Повторить тот же заказ? Напишите «да» — оформлю. Хотите изменить состав — вот каталог: <span class="lnk">t.me/akm_bot?start=cart</span>
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3)">Кнопок нет — Telegram их в этом канале запрещает. Согласие даётся словом, каталог открывается ссылкой.</div>
+    </div>
+
+    <div class="note crit">
+      <span class="tag">Антиспам — здесь риск выше, чем у бота</span>
+      <p>Рассылка идёт из живого аккаунта. Если клиент пожалуется, ограничения получит <b>аккаунт компании со всей клиентской перепиской</b>, а не бот, которого можно перевыпустить за минуту. Поэтому лимиты жёстче обычных:</p>
+      <p>Не более одного проактивного сообщения на клиента в 7 дней. Только 09:00–19:00 по Ташкенту, не в воскресенье. Не более 30–50 сообщений в час на аккаунт с паузами, а не пачкой. Первая неделя — не более 20 сообщений в день суммарно, с ручной проверкой каждого. Просьба не писать — отписка навсегда, немедленно.</p>
+      <p>Отдельный счётчик жалоб и блокировок: рост показателя останавливает рассылку автоматически, до разбора человеком.</p>
+    </div>
+  </article>
+
+  <article class="mod">
+    <div class="mod-head"><span class="mod-id">M5</span><h3>Напоминания о долгах контрагентов</h3><span class="chan b">Канал B</span></div>
+    <p class="mod-sub">Финансист и руководитель видят просрочку каждое утро, не открывая ни Linko, ни Excel. Группа — значит только бот.</p>
+    <ol class="flow">
+      <li>Ночью пересчитывается дебиторка по всем точкам по формуле из раздела 01, с разбивкой по срокам: до 7 дней, 8–30, 31–60, свыше 60.</li>
+      <li>В 09:00 в группу финансистов уходит сводка: общая сумма долга, сколько из неё просрочено, топ-10 должников с динамикой к прошлой неделе.</li>
+      <li>Долг, перешедший из «до 7 дней» в «8–30», подсвечивается отдельно — это момент, когда ещё дёшево вмешаться.</li>
+      <li>По каждой точке кнопка «Напомнить клиенту»: нажатие отправляет заготовленный текст в канал A, от имени аккаунта. Отправка только вручную — автоматических требований оплаты бот не рассылает никогда.</li>
+      <li>Оплата, пришедшая в <code>payments/</code>, автоматически закрывает позицию в сводке следующего дня.</li>
+    </ol>
+    <p><b>Границы v1:</b> бот считает и показывает. Он не блокирует отгрузку при превышении лимита и не пишет клиенту про долг сам — это решение человека.</p>
+  </article>
+</section>
+
+<section id="data">
+  <span class="sec-num">05</span>
+  <h2>Данные</h2>
+  <p class="lede">Своя база — не кэш, а рабочая копия. Она нужна, потому что в Linko нет истории диалогов, нет связи Telegram с точкой и нет ничего про то, кому и когда мы уже писали.</p>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Таблица</th><th>Что хранит</th><th>Откуда</th></tr></thead>
+    <tbody>
+      <tr><td class="m">markets</td><td>Точки, телефоны, ИНН, агент, прайс-лист</td><td>Linko, инкрементально</td></tr>
+      <tr><td class="m">products / prices / balances</td><td>Ассортимент, цены по прайсам, остатки</td><td>Linko, инкрементально</td></tr>
+      <tr><td class="m">orders / order_items</td><td>Заказы и состав — база всей аналитики M4</td><td>Linko, инкрементально</td></tr>
+      <tr><td class="m">payments</td><td>Оплаты и перечисления</td><td>Linko, инкрементально</td></tr>
+      <tr><td class="m">promotions</td><td>Действующие акции</td><td>Linko, инкрементально</td></tr>
+      <tr><td class="m">sync_state</td><td>Курсор <code>last_tm</code> по каждой сущности</td><td>Своё</td></tr>
+      <tr><td class="m">customers</td><td>Клиент как личность: <code>user_id</code>, точки, язык, согласие</td><td>Своё</td></tr>
+      <tr><td class="m">channel_bindings</td><td>Связь <code>user_id</code> с чатами в A и B — склейка каналов</td><td>Своё</td></tr>
+      <tr><td class="m">business_connections</td><td>Активные business-подключения, права, список исключений</td><td>Telegram</td></tr>
+      <tr><td class="m">conversations / messages</td><td>Переписка с указанием канала, вызовы инструментов, передачи менеджеру</td><td>Своё</td></tr>
+      <tr><td class="m">carts</td><td>Незавершённые корзины, общие для обоих каналов</td><td>Своё</td></tr>
+      <tr><td class="m">outbox</td><td>Что, кому и в каком канале отправлено — дедупликация и антиспам</td><td>Своё</td></tr>
+      <tr><td class="m">esf_queue</td><td>Статус каждого заказа в ЭСФ-конвейере</td><td>Своё</td></tr>
+      <tr><td class="m">debt_snapshots</td><td>Ежедневный срез дебиторки для динамики</td><td>Своё</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="ai">
+  <span class="sec-num">06</span>
+  <h2>Как правильно строить такого агента</h2>
+  <p class="lede">Отдельный запрос Акмаля — «посмотреть лучшие практики». Ниже то, что отличает работающего бота от демо, которое красиво выглядит неделю.</p>
+
+  <h3>Инструменты вместо знаний</h3>
+  <p>Модель ничего не знает про ассортимент, цены и остатки — она их запрашивает. Прайс меняется, а промпт нет. Никакого дообучения на клиентской базе: свежие данные приходят вызовом инструмента, а не переобучением.</p>
+
+  <h3>Детерминированное — кодом, размытое — моделью</h3>
+  <p>Скидки, итоговая сумма, проверка остатка, расчёт долга, лимиты рассылки — обычный код, который можно покрыть тестами. Модель отвечает только за понимание запроса и формулировку ответа. Ошибка в арифметике у модели стоит денег, ошибка в вежливости — нет.</p>
+
+  <h3>Тон под канал</h3>
+  <p>В канале A сообщение подписано живым аккаунтом, поэтому оно должно звучать как человек: коротко, без разметки, без канцелярита и дежурных формул вежливости. В канале B бот и выглядит ботом — там уместны структура, списки и кнопки. Это два разных системных промпта, а не один на оба канала.</p>
+
+  <h3>Человек на каждом необратимом шаге</h3>
+  <p>Заказ уходит в Linko после явного подтверждения. ЭСФ выставляет бухгалтер. Про долг клиенту пишет менеджер нажатием кнопки. Бот везде готовит работу, но не совершает её за человека.</p>
+
+  <h3>Наблюдаемость с первого дня</h3>
+  <p>Каждый диалог, каждый вызов инструмента, каждый запрос в Linko — в логе, с пометкой канала. Метрики, которые смотрим еженедельно: доля диалогов, дошедших до заказа; доля передач менеджеру; сколько заказов из Telegram отменено; конверсия реактивации; отписки и блокировки. Если конверсия реактивации ниже 5%, а отписки выше 2% — модуль M4 останавливается и пересматривается, а не «подкручивается промптом».</p>
+
+  <h3>Начинать с узкого</h3>
+  <p>Первый месяц канал A включён на 10–15 лояльных точках через список исключений — остальные чаты бот не видит вообще. Все его сообщения читает менеджер, ошибки собираются в список и превращаются в тесты. Только после этого — вся база.</p>
+
+  <h3>Деньги на модель</h3>
+  <p>Диалоги короткие, контекст маленький — расход на модель при паре тысяч диалогов в месяц несопоставим со стоимостью одного менеджера. Дорого станет только если тащить в контекст весь прайс: поэтому поиск товара — инструментом по базе, а не «дай модели список из 3000 позиций».</p>
+</section>
+
+<section id="risks">
+  <span class="sec-num">07</span>
+  <h2>Риски</h2>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Риск</th><th>Что делаем</th></tr></thead>
+    <tbody>
+      <tr><td><b>Бот отвечает в личных чатах владельца</b></td><td>Список исключений настраивается до первого запуска; на пилоте — белый список из 10–15 клиентов, остальное бот не видит.</td></tr>
+      <tr><td><b>Ограничения на рабочий аккаунт из-за рассылки</b></td><td>Жёсткие лимиты M4, автостоп по росту жалоб и блокировок, разгон объёма постепенный. Отдельный корпоративный номер, а не личный аккаунт руководителя.</td></tr>
+      <tr><td>Аккаунт уходит вместе с сотрудником</td><td>Номер и Premium оформлены на компанию, доступ к SIM у руководителя.</td></tr>
+      <tr><td>Клиент узнал, что «менеджер» — программа</td><td>Решение о раскрытии принимается до пилота; при любом сомнении бот передаёт диалог человеку.</td></tr>
+      <tr><td>Утёкший админ-токен Linko</td><td>Отозвать и перевыпустить до старта работ. Хранить только в переменных окружения, не в коде и не в переписке.</td></tr>
+      <tr><td>Боевой Linko недоступен снаружи</td><td>Проверить до выбора стека — от этого зависит облако или VPS в Ташкенте.</td></tr>
+      <tr><td>Долг из Linko не сходится с бухгалтерией</td><td>Сверка на 10 контрагентах на этапе 2. Не сошлось — источником становится 1С.</td></tr>
+      <tr><td>Модель придумала цену или акцию</td><td>Цены и акции только из инструментов, в тестах — набор провокационных вопросов, проверка на каждом релизе.</td></tr>
+      <tr><td>Двойные заказы и двойные карточки ЭСФ</td><td>Дедупликация по <code>uuid</code> и идемпотентность на каждой отправке.</td></tr>
+      <tr><td>Клиент потерял корзину при переходе A → B</td><td>Склейка по <code>user_id</code> в <code>channel_bindings</code>, корзина общая для обоих каналов.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="road">
+  <span class="sec-num">08</span>
+  <h2>Этапы</h2>
+  <p class="lede">Порядок выбран так, чтобы первая польза пришла на второй неделе и не зависела от готовности клиентов пользоваться ботом.</p>
+  <div class="road">
+    <div class="road-row">
+      <div class="road-w">Нед. 1–2</div>
+      <div class="road-t"><b>Ядро + M1 · канал B</b><span>Синхронизатор с курсорами, база, зеркало Linko, ЭСФ-карточки в группу бухгалтеров, кнопка «выставлен», вечерняя сводка.</span></div>
+      <div class="road-o">Бухгалтерия перестаёт заходить в Linko</div>
+    </div>
+    <div class="road-row">
+      <div class="road-w">Нед. 3</div>
+      <div class="road-t"><b>M5 — долги · канал B</b><span>Расчёт дебиторки, разбивка по срокам, утренняя сводка финансистам, сверка с бухгалтерией на 10 контрагентах.</span></div>
+      <div class="road-o">Просрочка видна каждое утро</div>
+    </div>
+    <div class="road-row">
+      <div class="road-w">Нед. 4</div>
+      <div class="road-t"><b>Подключение канала A</b><span>Корпоративный номер и Premium, business-подключение, список исключений, роутер каналов, режим «только слушаю» — бот читает переписку и пишет черновики ответов менеджеру, но клиенту не отвечает.</span></div>
+      <div class="road-o">Проверка качества без риска</div>
+    </div>
+    <div class="road-row">
+      <div class="road-w">Нед. 5–6</div>
+      <div class="road-t"><b>M3 + M2 — клиентский диалог</b><span>Бот начинает отвечать сам на 10–15 точках, опознание клиентов, повтор заказа текстом, каталог и корзина в канале B, <code>sync_order</code>, передача менеджеру.</span></div>
+      <div class="road-o">Заказы приходят из переписки</div>
+    </div>
+    <div class="road-row">
+      <div class="road-w">Нед. 7–8</div>
+      <div class="road-t"><b>M4 — реактивация</b><span>Расчёт ритма заказов, триггеры, антиспам с автостопом, замер конверсии. Разгон объёма постепенный, раскатка на всю базу после пилота.</span></div>
+      <div class="road-o">Аккаунт возвращает клиентов сам</div>
+    </div>
+    <div class="road-row">
+      <div class="road-w">Далее</div>
+      <div class="road-t"><b>Авто-ЭСФ, Mini App, аналитика</b><span>Выгрузка в Didox / my.soliq без участия бухгалтера, полноценный каталог в Mini App, дашборд по продажам и работе бота.</span></div>
+      <div class="road-o">Оценивается после выбора ЭДО</div>
+    </div>
+  </div>
+  <p style="font-size:14.5px;color:var(--ink-2)">Сроки — при одном разработчике на полной загрузке и при условии, что доступы выданы в первый день. Каждый этап заканчивается работающим в бою куском, а не демонстрацией. Неделя 4 намеренно потрачена на режим «только слушаю»: это самый дешёвый способ увидеть, что бот отвечает не то, до того как он это отправит клиенту.</p>
+</section>
+
+<section id="questions">
+  <span class="sec-num">09</span>
+  <h2>Что нужно от заказчика до старта</h2>
+
+  <div class="q"><div class="q-n">01</div><div><b>Боевой Linko: адрес и токен</b><span>Доступен ли рабочий сервер из интернета? От ответа зависит выбор между облаком и VPS в Ташкенте. Демо-токен нужно отозвать.</span></div></div>
+  <div class="q"><div class="q-n">02</div><div><b>Какой именно аккаунт становится каналом A</b><span>Куда клиенты пишут сегодня? Это личный аккаунт сотрудника или отдельный рабочий номер? Настоятельно рекомендую завести отдельный корпоративный номер и оформить Premium на компанию.</span></div></div>
+  <div class="q"><div class="q-n">03</div><div><b>Раскрывать ли, что отвечает автопомощник</b><span>Решение ваше. Рекомендую мягкое раскрытие в первом сообщении — на техническую часть не влияет, на доверие клиентов влияет сильно.</span></div></div>
+  <div class="q"><div class="q-n">04</div><div><b>Учётная запись бота в Linko</b><span>Нужен отдельный пользователь-агент, склад по умолчанию и правило: какому из двух экспедиторов назначать заказ из Telegram.</span></div></div>
+  <div class="q"><div class="q-n">05</div><div><b>Две группы в Telegram</b><span>«Бухгалтерия» и «Финансы» — создать, добавить бота, определить, кто в каждой имеет право нажимать кнопки.</span></div></div>
+  <div class="q"><div class="q-n">06</div><div><b>Как считается долг сегодня</b><span>Выгрузка дебиторки на любую дату — чтобы сверить нашу формулу с реальной цифрой бухгалтерии.</span></div></div>
+  <div class="q"><div class="q-n">07</div><div><b>Оператор ЭДО</b><span>Через кого выставляются ЭСФ сейчас — Didox, my.soliq, Faktura? Есть ли API и договор. Без этого этап авто-ЭСФ нельзя оценить.</span></div></div>
+  <div class="q"><div class="q-n">08</div><div><b>Кто такой «менеджер»</b><span>Кто подключается к диалогу, в каком графике, и что клиенту отвечать в нерабочее время.</span></div></div>
+  <div class="q"><div class="q-n">09</div><div><b>Список точек для пилота</b><span>10–15 лояльных клиентов, чьи чаты первыми попадут в белый список канала A.</span></div></div>
+  <div class="q"><div class="q-n">10</div><div><b>Примеры живой переписки</b><span>20–30 реальных диалогов менеджера с клиентами. Это лучший источник и для тона канала A, и для набора тестов — точнее любого описания словами.</span></div></div>
+</section>
+
+<footer>
+  <span>ООО «AKM Holdings Inc» · Ташкент</span>
+  <span>ТЗ v2 · 08.09.2026 · черновик к согласованию</span>
+</footer>
+
+</div>

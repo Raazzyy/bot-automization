@@ -28,11 +28,13 @@ async function main() {
   console.log('  Проверка окружения AKM-бота');
   console.log(`${DIM}─────────────────────────────────────────────${R}\n`);
 
-  console.log(`  Режим:      \x1b[1m${config.MODE}\x1b[0m${
-    config.MODE === 'dry_run' ? `  ${DIM}(наружу ничего не уходит)${R}` :
-    config.MODE === 'shadow'  ? `  ${DIM}(клиентам не пишем, сотрудникам да)${R}` :
-    `  \x1b[31m(боевой — сообщения уходят по-настоящему)${R}`
-  }`);
+  const MODE_NOTE: Record<string, string> = {
+    dry_run: `  ${DIM}(наружу ничего не уходит, всё в лог)${R}`,
+    shadow: `  ${DIM}(клиентам не пишем, сотрудникам да)${R}`,
+    assist: `  ${DIM}(полуавтомат: карточки в группу, клиенту отвечают люди)${R}`,
+    live: `  \x1b[31m(боевой — бот отвечает клиентам сам)${R}`,
+  };
+  console.log(`  Режим:      \x1b[1m${config.MODE}\x1b[0m${MODE_NOTE[config.MODE] ?? ''}`);
   console.log(`  Linko:      ${config.LINKO_BASE_URL}`);
   console.log(`  Токен:      ${mask(config.LINKO_TOKEN)}`);
   console.log(`  БД:         ${isEmbeddedDb ? 'встроенная PGlite' : 'внешний Postgres'} ${DIM}${config.DATABASE_URL.replace(/:[^:@/]+@/, ':***@')}${R}\n`);
@@ -101,10 +103,15 @@ async function main() {
     ['Бухгалтерия (M1)', config.ACCOUNTANT_CHAT_ID],
     ['Финансы (M5)', config.FINANCE_CHAT_ID],
     ['Менеджеры (M3)', config.MANAGER_CHAT_ID],
+    ['Обращения (полуавтомат)', config.ASSIST_CHAT_ID],
   ];
   for (const [name, id] of groups) {
     if (id) console.log(`${OK} ${name}: ${id}`);
     else console.log(`${WARN} ${name}: не задана — уведомления никуда не пойдут`);
+  }
+
+  if (config.MODE === 'assist' && !config.ASSIST_CHAT_ID && !config.MANAGER_CHAT_ID) {
+    problems.push('Режим assist без группы: задайте ASSIST_CHAT_ID, иначе обращения некуда складывать');
   }
 
   console.log('');

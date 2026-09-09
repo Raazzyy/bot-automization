@@ -8,7 +8,8 @@ import { normalizePhone } from '../lib/phone.js';
 import { send, businessChatAllowed } from './send.js';
 import { runAgent } from '../ai/agent.js';
 import { sendAttachments } from './media.js';
-import { canSendToClients } from '../config.js';
+import { canSendToClients, isAssist } from '../config.js';
+import { handleIncoming, handleAssistCallback, relayStaffReply } from './assist.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
 
 const esc = (s: unknown) =>
@@ -197,6 +198,19 @@ export function createBot(): Bot {
       // Стикеры — единственное, на что отвечать не надо
       if (kind === 'sticker') return;
 
+      // Полуавтомат: вложение тоже становится карточкой в группе
+      if (isAssist) {
+        await handleIncoming(ctx.api, {
+          chatId, messageId: msg.message_id,
+          businessConnectionId: connId,
+          clientName: ctx.from?.first_name ?? 'клиент',
+          username: ctx.from?.username,
+          text: '',
+          attachmentKind: KIND_RU[kind] ?? kind,
+        });
+        return;
+      }
+
       log.info(`Канал A ${chatId}: прислали ${kind} — передаю менеджеру`);
 
       if (canSendToClients) {
@@ -233,6 +247,19 @@ export function createBot(): Bot {
     }
 
     if (!text) return;
+
+    // Полуавтомат: бот не отвечает вовсе — заводим карточку и уходим.
+    // Разбираются сотрудники, ответ доставляется через relayStaffReply.
+    if (isAssist) {
+      await handleIncoming(ctx.api, {
+        chatId, messageId: msg.message_id,
+        businessConnectionId: connId,
+        clientName: ctx.from?.first_name ?? 'клиент',
+        username: ctx.from?.username,
+        text,
+      });
+      return;
+    }
 
     const cust = ctx.from
       ? (await db.select().from(customers).where(eq(customers.tgUserId, ctx.from.id)).limit(1))[0]
@@ -406,6 +433,42 @@ export function createBot(): Bot {
     if (res.edit) {
       await ctx.editMessageText(res.edit, { parse_mode: 'HTML' }).catch(() => {});
     }
+  });
+
+  /* ─────────── Полуавтомат: кнопки карточек ─────────── */
+
+  bot.callbackQuery(/^req:/, async (ctx) => {
+    const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await handleAssistCallback(ctx.callbackQuery.data, ctx.from.id, name);
+    await ctx.answerCallbackQuery({ text: res.answer.slice(0, 200), show_alert: res.alert ?? false });
+
+    if (res.edit) {
+      await ctx.editMessageText(res.edit, {
+        parse_mode: 'HTML',
+        reply_markup: res.keyboard,
+      }).catch(() => {});
+    }
+  });
+
+  /* Ответ сотрудника на карточку — доставляем клиенту */
+
+  bot.on('message:text', async (ctx, next) => {
+    const reply = ctx.message.reply_to_message;
+    const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+
+    // Реагируем только на ответы на сообщения самого бота в рабочей группе
+    if (!isGroup || !reply || reply.from?.id !== ctx.me.id) return next();
+    if (ctx.message.text.startsWith('/')) return next();
+
+    const staff = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await relayStaffReply(ctx.api, reply.message_id, ctx.message.text, staff);
+    await ctx.reply(res.ok ? `✅ ${res.note}` : `⚠️ ${res.note}`, {
+      reply_parameters: { message_id: ctx.message.message_id },
+    });
   });
 
   /* ─────────── Канал B: контакт для привязки ─────────── */

@@ -88,6 +88,17 @@ async function generate(body: unknown, attempt = 1): Promise<GenerateResponse> {
   return json;
 }
 
+/**
+ * Модель регулярно ОБЕЩАЕТ передать менеджеру, но инструмент не вызывает.
+ * Для клиента это худший исход: ему сказали «сейчас подключу человека»,
+ * а человек ничего не узнал. Полагаться тут на модель нельзя — ловим кодом.
+ */
+const PROMISED_HANDOFF = /(переда(ю|м|ст)|подключ(у|им|ит)|уточн(ю|им)|позов(у|ём)|свяж(усь|ется)|менеджер|коллег|сотрудник|специалист)/i;
+
+function looksLikeHandoffPromise(reply: string): boolean {
+  return PROMISED_HANDOFF.test(reply);
+}
+
 /** Один ход разговора: вопрос клиента → ответ, с вызовами инструментов по пути */
 export async function runAgent(input: AgentInput): Promise<AgentTurn> {
   if (!config.GEMINI_API_KEY) {
@@ -145,6 +156,13 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
 
     if (!calls.length) {
       const text = parts.map((p) => p.text ?? '').join('').trim();
+
+      // Пообещала человека, но инструмент не вызвала — считаем передачей всё равно
+      if (!handoff && looksLikeHandoffPromise(text)) {
+        log.warn('Модель пообещала менеджера, но не вызвала инструмент — передаю принудительно');
+        handoff = 'модель пообещала передать менеджеру';
+      }
+
       return { reply: text, toolCalls, attachments, handoff };
     }
 

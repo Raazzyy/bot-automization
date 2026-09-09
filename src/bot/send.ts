@@ -37,6 +37,9 @@ export type SendOutcome =
 function allowedByMode(audience: Audience): boolean {
   switch (config.MODE) {
     case 'live': return true;
+    // Полуавтомат: сотрудникам пишем, клиенту — только руками человека
+    // (это идёт мимо send, через relayStaffReply)
+    case 'assist': return audience === 'staff';
     case 'shadow': return audience === 'staff';
     case 'dry_run': return false;
   }

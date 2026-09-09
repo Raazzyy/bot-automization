@@ -202,6 +202,30 @@ const DDL = [
      updated_at timestamptz NOT NULL DEFAULT now()
    )`,
 
+  `CREATE TABLE IF NOT EXISTS requests (
+     id serial PRIMARY KEY,
+     chat_id bigint NOT NULL,
+     business_connection_id text,
+     client_name text NOT NULL,
+     username text,
+     text text NOT NULL,
+     attachment_kind text,
+     extracted jsonb,
+     summary text,
+     status text NOT NULL DEFAULT 'new',
+     card_chat_id bigint,
+     card_message_id integer,
+     taken_by_user_id bigint,
+     taken_by_name text,
+     taken_at timestamptz,
+     replied_at timestamptz,
+     closed_by_name text,
+     closed_at timestamptz,
+     created_at timestamptz NOT NULL DEFAULT now()
+   )`,
+  `CREATE INDEX IF NOT EXISTS requests_status_idx ON requests (status)`,
+  `CREATE INDEX IF NOT EXISTS requests_card_idx ON requests (card_message_id)`,
+
   `CREATE TABLE IF NOT EXISTS debt_snapshots (
      id serial PRIMARY KEY,
      date text NOT NULL,

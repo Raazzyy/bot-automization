@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot } from 'grammy';
 import { eq, sql, desc } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';
@@ -466,6 +466,11 @@ export function createBot(): Bot {
       || ctx.from.username || String(ctx.from.id);
 
     const res = await relayStaffReply(ctx.api, reply.message_id, ctx.message.text, staff);
+
+    // Ответили на карточку ЭСФ или на любое другое сообщение бота —
+    // это не наше дело, молчим и пропускаем дальше.
+    if (!res.ok && res.notACard) return next();
+
     await ctx.reply(res.ok ? `✅ ${res.note}` : `⚠️ ${res.note}`, {
       reply_parameters: { message_id: ctx.message.message_id },
     });

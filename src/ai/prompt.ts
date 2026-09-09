@@ -149,5 +149,20 @@ export function buildContext(o: {
   if (o.lastOrderDate) lines.push(`Последний заказ: ${o.lastOrderDate}`);
 
   lines.push(`Сегодня: ${new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10)}`);
+
+  // Без этого блока модель не знает ни одного ключа и вызвать
+  // otpravit_fayl не сможет — придумывать ключи ей запрещено.
+  if (o.media?.length) {
+    lines.push('', 'ФАЙЛЫ, КОТОРЫЕ МОЖНО ОТПРАВИТЬ (инструмент otpravit_fayl):');
+    for (const m of o.media) {
+      lines.push(
+        `  ${m.key} — ${m.title}`
+        + (m.description ? `. ${m.description}` : '')
+        + (m.keywords.length ? ` [просят так: ${m.keywords.join(', ')}]` : ''),
+      );
+    }
+    lines.push('Ключей вне этого списка не существует — не выдумывай.');
+  }
+
   return lines.join('\n');
 }

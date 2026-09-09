@@ -226,7 +226,7 @@ export async function relayStaffReply(
   replyToMessageId: number,
   text: string,
   staffName: string,
-): Promise<{ ok: boolean; note: string }> {
+): Promise<{ ok: boolean; note: string; notACard?: boolean }> {
   const db = await getDb();
 
   const [r] = await db.select().from(requests)
@@ -234,7 +234,7 @@ export async function relayStaffReply(
     .orderBy(desc(requests.id))
     .limit(1);
 
-  if (!r) return { ok: false, note: 'Это сообщение не карточка обращения' };
+  if (!r) return { ok: false, note: 'Это сообщение не карточка обращения', notACard: true };
 
   try {
     const sent = await api.sendMessage(r.chatId, text, {

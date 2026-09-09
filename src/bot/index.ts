@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from 'grammy';
+import { Bot } from 'grammy';
 import { eq, sql, desc } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';

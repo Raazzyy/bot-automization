@@ -88,6 +88,17 @@ async function generate(body: unknown, attempt = 1): Promise<GenerateResponse> {
   return json;
 }
 
+/**
+ * Модель регулярно ОБЕЩАЕТ передать менеджеру, но инструмент не вызывает.
+ * Для клиента это худший исход: ему сказали «сейчас подключу человека»,
+ * а человек ничего не узнал. Полагаться тут на модель нельзя — ловим кодом.
+ */
+const PROMISED_HANDOFF = /(переда(ю|м|ст)|подключ(у|им|ит)|уточн(ю|им)|позов(у|ём)|свяж(усь|ется)|менеджер|коллег|сотрудник|специалист)/i;
+
+function looksLikeHandoffPromise(reply: string): boolean {
+  return PROMISED_HANDOFF.test(reply);
+}
+
 /** Один ход разговора: вопрос клиента → ответ, с вызовами инструментов по пути */
 export async function runAgent(input: AgentInput): Promise<AgentTurn> {
   if (!config.GEMINI_API_KEY) {
@@ -97,6 +108,9 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
   const system = (input.channel === 'A' ? SYSTEM_CHANNEL_A : SYSTEM_CHANNEL_B)
     + '\n\n'
     + buildContext({
+      // Без этого списка модель не знает, какие файлы существуют,
+      // и вызвать otpravit_fayl ей просто нечем — ключи она не выдумывает.
+      media: await listMedia(),
       clientName: input.clientName,
       marketName: input.marketName,
       marketId: input.ctx.marketId,
@@ -122,7 +136,9 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
         systemInstruction: { parts: [{ text: system }] },
         tools: [{ functionDeclarations: TOOL_DECLARATIONS }],
         generationConfig: {
-          temperature: 0.4,
+          // Низкая температура: от прогона к прогону ответы должны быть
+          // одинаковыми. Творчество здесь не нужно, нужна предсказуемость.
+          temperature: 0.15,
           // Щедрый лимит: у Gemini 3.x «размышления» тратят тот же бюджет,
           // и при 600 модель успевала подумать, но не ответить.
           maxOutputTokens: 2048,
@@ -145,6 +161,13 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
 
     if (!calls.length) {
       const text = parts.map((p) => p.text ?? '').join('').trim();
+
+      // Пообещала человека, но инструмент не вызвала — считаем передачей всё равно
+      if (!handoff && looksLikeHandoffPromise(text)) {
+        log.warn('Модель пообещала менеджера, но не вызвала инструмент — передаю принудительно');
+        handoff = 'модель пообещала передать менеджеру';
+      }
+
       return { reply: text, toolCalls, attachments, handoff };
     }
 

@@ -11,3 +11,5 @@ dist/
 # Свои файлы для бота — не коммитить
 media.json
 media/
+*.pdf
+*.jpg

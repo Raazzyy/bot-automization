@@ -476,6 +476,63 @@ export function createBot(): Bot {
     });
   });
 
+  /* ─────────── Канал B: клиент пишет прямо боту ─────────── */
+
+  /**
+   * Без Telegram Premium канал A недоступен, и клиенты пишут не в рабочий
+   * аккаунт, а самому боту. Полуавтомат от этого не меняется: то же
+   * обращение, та же карточка, тот же ответ реплаем из группы.
+   * Разница одна — клиенту надо один раз нажать «Старт».
+   */
+  bot.on('message', async (ctx, next) => {
+    if (ctx.chat.type !== 'private') return next();
+    if (!isAssist) return next();
+
+    const msg = ctx.message;
+    if (msg.text?.startsWith('/')) return next();
+
+    const kind = describeNonText(msg);
+    if (kind === 'sticker') return;
+    // Контакт обрабатывает отдельный обработчик ниже — там привязка по телефону
+    if (kind === 'contact') return next();
+
+    const text = msg.text ?? msg.caption ?? '';
+    if (!text && !kind) return next();
+
+    const db = await getDb();
+
+    await db.insert(customers).values({
+      tgUserId: ctx.from.id,
+      firstName: ctx.from.first_name ?? null,
+      username: ctx.from.username ?? null,
+    }).onConflictDoUpdate({
+      target: customers.tgUserId,
+      set: { firstName: ctx.from.first_name ?? null, username: ctx.from.username ?? null },
+    });
+
+    await db.insert(messages).values({
+      channel: 'B',
+      chatId: ctx.chat.id,
+      tgMessageId: msg.message_id,
+      direction: 'in',
+      author: 'client',
+      text: text || `[${KIND_RU[kind ?? 'other'] ?? 'вложение'}]`,
+      mode: config.MODE,
+    });
+
+    log.info(`Канал B ${ctx.chat.id} · ${ctx.from.first_name ?? '?'}: ${text || `[${kind}]`}`);
+
+    // business_connection_id не передаём — ответ уйдёт от имени бота
+    await handleIncoming(ctx.api, {
+      chatId: ctx.chat.id,
+      messageId: msg.message_id,
+      clientName: ctx.from.first_name ?? 'клиент',
+      username: ctx.from.username,
+      text,
+      attachmentKind: text ? undefined : (KIND_RU[kind ?? 'other'] ?? 'вложение'),
+    });
+  });
+
   /* ─────────── Канал B: контакт для привязки ─────────── */
 
   bot.on('message:contact', async (ctx) => {

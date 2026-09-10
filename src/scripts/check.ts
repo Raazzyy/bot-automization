@@ -84,7 +84,13 @@ async function main() {
     console.log(`${OK} Telegram — бот @${me.username} (${me.first_name})`);
     console.log(`${DIM}    Secretary Mode: ${me.can_connect_to_business ? 'включён' : 'ВЫКЛЮЧЕН'}${R}`);
     if (!me.can_connect_to_business) {
-      problems.push('Включите Secretary Mode: @BotFather → /mybots → бот → Bot Settings → Secretary Mode. До мая 2026 назывался Business Mode — если видите старое название, это он же.');
+      // Без Secretary Mode и Premium канал A недоступен, но это не блокер:
+      // в полуавтомате клиенты пишут самому боту, и всё работает.
+      console.log(`${DIM}    канал A (ответы от имени аккаунта) недоступен — нужен Premium${R}`);
+      console.log(`${DIM}    клиенты будут писать боту напрямую, полуавтомат от этого работает${R}`);
+      if (config.MODE === 'live') {
+        problems.push('Режим live без канала A: включите Secretary Mode в @BotFather и Premium на аккаунте, либо переключитесь на assist');
+      }
     }
 
     const wh = await bot.api.getWebhookInfo();

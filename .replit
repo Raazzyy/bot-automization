@@ -6,5 +6,6 @@ entrypoint = "src/dev.ts"
 channel = "stable-24_05"
 
 [deployment]
-run = ["npm", "run", "dev"]
-deploymentTarget = "cloudrun"
+build = ["npm", "run", "build"]
+run = ["npm", "start"]
+deploymentTarget = "reserved-vm"

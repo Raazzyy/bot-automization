@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Telegram-агент AKM Holdings: канал A (Business-аккаунт) + канал B (бот), интеграция с Linko",
   "scripts": {
+    "build": "tsc --noEmit",
     "check": "tsx src/scripts/check.ts",
     "db:push": "drizzle-kit push",
     "phones:import": "tsx src/scripts/import-phones.ts",
@@ -22,18 +23,18 @@
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",
     "@pdf-lib/fontkit": "^1.1.1",
-    "drizzle-orm": "^0.38.3",
+    "drizzle-orm": "^0.45.2",
     "grammy": "^1.32.0",
     "pdf-lib": "^1.17.1",
     "pg": "^8.13.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
     "@types/pg": "^8.11.10",
-    "drizzle-kit": "^0.30.1",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "drizzle-kit": "^0.30.1"
   },
   "engines": {
     "node": ">=22"

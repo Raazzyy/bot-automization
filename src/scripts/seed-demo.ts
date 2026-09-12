@@ -22,19 +22,53 @@ const DEMO_MARKETS = [
   { id: -1, name: 'MARKET 1 · Чиланзар', inn: '100000001', phone: '+998900000001' },
   { id: -2, name: 'Магазин «Барака»', inn: '100000002', phone: '+998900000002' },
   { id: -3, name: 'ООО «Дилшод Савдо»', inn: '100000003', phone: '+998900000003' },
+  { id: -4, name: 'Кафе «Султан»', inn: '100000004', phone: '+998900000004' },
+  { id: -5, name: 'Ресторан «Caravan City»', inn: '100000005', phone: '+998900000005' },
 ];
 
 const DEMO_ITEMS = [
-  { id: -11, name: 'Масло подсолнечное 1 л', price: 24_500, amount: 20, unit: 'шт', stock: 1400 },
-  { id: -12, name: 'Сахар-песок 50 кг', price: 610_000, amount: 4, unit: 'меш', stock: 90 },
-  { id: -13, name: 'Мука в/с 50 кг', price: 385_000, amount: 6, unit: 'меш', stock: 0 },
-  { id: -14, name: 'Рис лазер 1 кг', price: 18_900, amount: 40, unit: 'кг', stock: 2600 },
-  { id: -15, name: 'Макароны спагетти 450 г', price: 7_400, amount: 60, unit: 'шт', stock: 830 },
+  // Уксусы Sayam (500 мл стекло)
+  { id: -1, name: 'Яблочный уксус фильтрованный Sayam 500 мл', price: 29_000, amount: 12, unit: 'бут', stock: 650 },
+  { id: -2, name: 'Яблочный уксус нефильтрованный Sayam 500 мл', price: 39_000, amount: 12, unit: 'бут', stock: 420 },
+  { id: -3, name: 'Белый виноградный уксус Sayam 500 мл', price: 29_000, amount: 12, unit: 'бут', stock: 380 },
+  { id: -4, name: 'Черный виноградный уксус Sayam 500 мл', price: 29_000, amount: 12, unit: 'бут', stock: 310 },
+  { id: -5, name: 'Бальзамический уксус Sayam 500 мл', price: 39_000, amount: 12, unit: 'бут', stock: 290 },
+
+  // Burcu: томатная паста, соусы, вяленые томаты, пицца соус
+  { id: -6, name: 'Томатная паста Burcu 830 г ж/б', price: 37_000, amount: 12, unit: 'бан', stock: 850 },
+  { id: -7, name: 'Томатная паста Burcu 600 г стекло', price: 37_000, amount: 12, unit: 'бан', stock: 540 },
+  { id: -8, name: 'Томатная паста Burcu 4300 г ж/б', price: 149_900, amount: 6, unit: 'бан', stock: 210 },
+  { id: -9, name: 'Соус Napolitena Burcu 310 г стекло', price: 20_000, amount: 12, unit: 'бан', stock: 400 },
+  { id: -10, name: 'Соус Arrabbiata Burcu 310 г стекло', price: 20_000, amount: 12, unit: 'бан', stock: 380 },
+  { id: -11, name: 'Вяленые помидоры в масле Burcu 300 г стекло', price: 39_000, amount: 12, unit: 'бан', stock: 290 },
+  { id: -12, name: 'Пицца соус Burcu 580 г стекло', price: 26_000, amount: 12, unit: 'бан', stock: 720 },
+  { id: -13, name: 'Пицца соус Burcu 4200 г ж/б', price: 139_900, amount: 6, unit: 'бан', stock: 180 },
+
+  // Соусы и соки Doganay & Nare
+  { id: -14, name: 'Гранатовый соус Doganay 340 г ПЭТ', price: 25_900, amount: 12, unit: 'бут', stock: 510 },
+  { id: -15, name: 'Гранатовый соус Doganay 680 г ПЭТ', price: 34_900, amount: 12, unit: 'бут', stock: 320 },
+  { id: -16, name: 'Гранатовый соус Doganay 1000 г ПЭТ', price: 42_900, amount: 12, unit: 'бут', stock: 280 },
+  { id: -17, name: 'Лимонный соус Doganay 500 мл ПЭТ', price: 19_900, amount: 12, unit: 'бут', stock: 600 },
+  { id: -18, name: '100% Лимонный сок Doganay 500 мл ПЭТ', price: 26_000, amount: 12, unit: 'бут', stock: 430 },
+  { id: -19, name: '100% Гранатовый соус Nare 340 г стекло', price: 37_000, amount: 6, unit: 'бут', stock: 250 },
+  { id: -20, name: 'Виноградный уксус Nare 500 мл ПЭТ', price: 20_000, amount: 12, unit: 'бут', stock: 340 },
+
+  // Тунец Dardanel
+  { id: -21, name: 'Тунец кусочками в собственном соку Dardanel 150 г', price: 29_900, amount: 24, unit: 'бан', stock: 1400 },
+  { id: -22, name: 'Тунец кусковой в подсолнечном масле Dardanel 150 г', price: 27_900, amount: 24, unit: 'бан', stock: 1600 },
+  { id: -23, name: 'Тунец филе в подсолнечном масле Dardanel 150 г', price: 29_900, amount: 24, unit: 'бан', stock: 1200 },
+  { id: -24, name: 'Тунец кусковой в оливковом масле Dardanel 150 г', price: 34_900, amount: 24, unit: 'бан', stock: 800 },
+  { id: -25, name: 'Тунец в подсолнечном масле Dardanel HoReCa 1705 г', price: 245_000, amount: 6, unit: 'бан', stock: 260 },
+
+  // Халапеньо & Чили
+  { id: -26, name: 'Халапеньо Kavaklidere Efor 650 г стекло', price: 44_000, amount: 12, unit: 'бан', stock: 350 },
+  { id: -27, name: 'Халапеньо Kavaklidere Efor 325 г стекло', price: 23_500, amount: 12, unit: 'бан', stock: 410 },
+  { id: -28, name: 'Сладкий соус чили для курицы Scoville 5600 г', price: 180_000, amount: 1, unit: 'кан', stock: 95 },
 ];
 
 const DEMO_PROMOS = [
-  { id: -31, name: 'Скидка 10% на подсолнечное масло', discount: 10, days: 21 },
-  { id: -32, name: 'При заказе от 5 мешков риса — доставка бесплатно', discount: null, days: 10 },
+  { id: -31, name: 'Скидка 10% на тунец Dardanel от 5 коробок', discount: 10, days: 21 },
+  { id: -32, name: 'При заказе от 3 банок пицца соуса Burcu 4200 г — доставка бесплатно', discount: null, days: 10 },
 ];
 
 function daysBack(n: number): string {
@@ -92,10 +126,16 @@ async function main() {
 
   let itemId = -1;
   const plan = [
-    { id: -101, market: DEMO_MARKETS[0]!, status: 'delivered', pay: 'bank', ago: 1, items: [0, 1, 3] },
-    { id: -102, market: DEMO_MARKETS[1]!, status: 'delivered', pay: 'cash', ago: 2, items: [2, 4] },
-    { id: -103, market: DEMO_MARKETS[2]!, status: 'given', pay: 'bank', ago: 3, items: [0, 2, 3, 4] },
-    { id: -104, market: DEMO_MARKETS[0]!, status: 'not_delivered', pay: 'bank', ago: 0, items: [1] },
+    { id: -101, market: DEMO_MARKETS[0]!, status: 'delivered', pay: 'bank', ago: 1, items: [0, 5, 20] },
+    { id: -102, market: DEMO_MARKETS[1]!, status: 'delivered', pay: 'cash', ago: 2, items: [6, 11, 21] },
+    { id: -103, market: DEMO_MARKETS[2]!, status: 'given', pay: 'bank', ago: 3, items: [1, 7, 22] },
+    { id: -104, market: DEMO_MARKETS[0]!, status: 'not_delivered', pay: 'bank', ago: 0, items: [12] },
+    // Должник с просрочкой 20 дней (Кафе Султан)
+    { id: -105, market: DEMO_MARKETS[3]!, status: 'delivered', pay: 'bank', ago: 25, items: [5, 20] },
+    // Спящий клиент (Caravan City): заказывал каждые 7 дней, молчит уже 21 день
+    { id: -106, market: DEMO_MARKETS[4]!, status: 'delivered', pay: 'bank', ago: 35, items: [0, 20] },
+    { id: -107, market: DEMO_MARKETS[4]!, status: 'delivered', pay: 'bank', ago: 28, items: [0, 20] },
+    { id: -108, market: DEMO_MARKETS[4]!, status: 'delivered', pay: 'bank', ago: 21, items: [0, 20] },
   ];
 
   for (const o of plan) {
@@ -148,11 +188,17 @@ async function main() {
       amount: '12400000', paymentType: 'bank', status: 'accepted',
       createdDate: daysBack(2), comment: 'Частичное погашение', tm: '0',
     },
+    {
+      id: -203, uuid: 'demo-pay-3',
+      marketId: -5, marketName: DEMO_MARKETS[4]!.name, marketInn: DEMO_MARKETS[4]!.inn,
+      amount: '5000000', paymentType: 'bank', status: 'accepted',
+      createdDate: daysBack(20), comment: 'Полная оплата всех заказов Caravan City', tm: '0',
+    },
   ]);
 
   console.log(`\n  Демо-данные готовы (${todayTashkent()}):`);
   console.log(`    точек: ${DEMO_MARKETS.length}`);
-  console.log(`    товаров: ${DEMO_ITEMS.length} (мука — с нулевым остатком, для проверки)`);
+  console.log(`    товаров: ${DEMO_ITEMS.length} (официальный ассортимент Прайс 2026.pdf)`);
   console.log(`    акций: ${DEMO_PROMOS.length}`);
   console.log(`    заказов: ${plan.length} — из них к ЭСФ подлежат 3`);
   console.log(`    перечислений: 2`);

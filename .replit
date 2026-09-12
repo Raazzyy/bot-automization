@@ -1,0 +1,10 @@
+modules = ["nodejs-22"]
+run = "npm run dev"
+entrypoint = "src/dev.ts"
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+run = ["npm", "run", "dev"]
+deploymentTarget = "cloudrun"

@@ -46,7 +46,12 @@ const schema = z.object({
   // dry_run  — ничего не отправляем наружу, всё пишем в лог
   // shadow   — читаем и готовим ответы, но клиенту не пишем (неделя 4 из ТЗ)
   // live     — работаем в бою
-  MODE: z.enum(['dry_run', 'shadow', 'live']).default('dry_run'),
+  // assist — полуавтомат: бот клиентам не отвечает, только заводит
+  //          карточки в группе; отвечают сотрудники, бот доставляет
+  MODE: z.enum(['dry_run', 'shadow', 'assist', 'live']).default('dry_run'),
+
+  // Группа, куда падают обращения в режиме assist
+  ASSIST_CHAT_ID: z.string().default(''),
 
 
   // --- Модель ---
@@ -74,5 +79,12 @@ export const config = parsed.data;
 export type Config = typeof config;
 
 export const isLive = config.MODE === 'live';
+
+/** Полуавтомат: карточки в группу, ответы пишут люди */
+export const isAssist = config.MODE === 'assist';
+
+/** Бот отвечает клиенту сам — только в бою */
 export const canSendToClients = config.MODE === 'live';
-export const canSendToStaff = config.MODE === 'live' || config.MODE === 'shadow';
+
+/** Сотрудникам пишем во всех режимах, кроме полностью холостого */
+export const canSendToStaff = config.MODE !== 'dry_run';

@@ -248,6 +248,35 @@ export const mediaFiles = pgTable('media_files', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Полуавтомат: обращение клиента как задача для сотрудников.
+ * Бот сам не отвечает — только заводит карточку и доставляет ответ человека.
+ */
+export const requests = pgTable('requests', {
+  id: serial('id').primaryKey(),
+  chatId: bigint('chat_id', { mode: 'number' }).notNull(),
+  businessConnectionId: text('business_connection_id'),
+  clientName: text('client_name').notNull(),
+  username: text('username'),
+  text: text('text').notNull(),
+  attachmentKind: text('attachment_kind'),
+  extracted: jsonb('extracted'),
+  summary: text('summary'),
+  status: text('status').notNull().default('new'),
+  cardChatId: bigint('card_chat_id', { mode: 'number' }),
+  cardMessageId: integer('card_message_id'),
+  takenByUserId: bigint('taken_by_user_id', { mode: 'number' }),
+  takenByName: text('taken_by_name'),
+  takenAt: timestamp('taken_at', { withTimezone: true }),
+  repliedAt: timestamp('replied_at', { withTimezone: true }),
+  closedByName: text('closed_by_name'),
+  closedAt: timestamp('closed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index('requests_status_idx').on(t.status),
+  cardIdx: index('requests_card_idx').on(t.cardMessageId),
+}));
+
 /** M5: ежедневный срез дебиторки */
 export const debtSnapshots = pgTable('debt_snapshots', {
   id: serial('id').primaryKey(),

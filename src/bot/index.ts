@@ -8,8 +8,13 @@ import { normalizePhone } from '../lib/phone.js';
 import { send, businessChatAllowed } from './send.js';
 import { runAgent } from '../ai/agent.js';
 import { sendAttachments } from './media.js';
-import { canSendToClients } from '../config.js';
+import { canSendToClients, isAssist } from '../config.js';
+import { handleIncoming, handleAssistCallback, relayStaffReply } from './assist.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
+import { downloadTelegramFile, transcribeAudio } from '../ai/media-ai.js';
+import { postDebtSummary, handleDebtCallback, calculateDebts } from './debts.js';
+import { postReactivationCards, handleReactivationCallback, findDormantMarkets } from './reactivate.js';
+import { fmtSum } from '../lib/money.js';
 
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -188,15 +193,62 @@ export function createBot(): Bot {
       }
     }
 
-    // Реальная переписка наполовину состоит из файлов, фото и локаций.
-    // Молча их терять нельзя: клиент прислал паспорт и ждёт реакции.
-    const text = msg.text ?? msg.caption ?? '';
+    // Реальная переписка наполовину состоит из файлов, фото, документов и голосовых
+    let text = msg.text ?? msg.caption ?? '';
     const kind = describeNonText(msg);
 
-    if (!text && kind) {
-      // Стикеры — единственное, на что отвечать не надо
-      if (kind === 'sticker') return;
+    // Стикеры — единственное, на что отвечать не надо
+    if (kind === 'sticker') return;
 
+    let attachmentKind = kind ? (KIND_RU[kind] ?? kind) : undefined;
+    const rawMsg = msg as Record<string, any>;
+
+    // Голосовые и аудио: расшифровываем в текст через Gemini Audio
+    if (kind === 'voice' || kind === 'audio') {
+      const audioId = rawMsg.voice?.file_id ?? rawMsg.audio?.file_id;
+      const audioMime = rawMsg.voice?.mime_type ?? rawMsg.audio?.mime_type ?? 'audio/ogg';
+      if (audioId) {
+        try {
+          const { buffer } = await downloadTelegramFile(ctx.api, audioId);
+          const transcript = await transcribeAudio(buffer, audioMime);
+          if (transcript) {
+            log.info(`Канал A ${chatId}: голосовое расшифровано -> «${transcript}»`);
+            text = transcript;
+            attachmentKind = 'голосовое (расшифровано)';
+          }
+        } catch (e) {
+          log.warn(`Канал A ${chatId}: не удалось расшифровать аудио: ${(e as Error).message}`);
+        }
+      }
+    }
+
+    // Документы и фото: извлекаем fileId для последующего OCR реквизитов
+    let attachmentFileId: string | undefined;
+    let attachmentMimeType: string | undefined;
+    if (kind === 'document') {
+      attachmentFileId = rawMsg.document?.file_id;
+      attachmentMimeType = rawMsg.document?.mime_type ?? 'application/pdf';
+    } else if (kind === 'photo') {
+      attachmentFileId = rawMsg.photo?.at(-1)?.file_id;
+      attachmentMimeType = 'image/jpeg';
+    }
+
+    // Полуавтомат: обработка обращения
+    if (isAssist) {
+      await handleIncoming(ctx.api, {
+        chatId, messageId: msg.message_id,
+        businessConnectionId: connId,
+        clientName: ctx.from?.first_name ?? 'клиент',
+        username: ctx.from?.username,
+        text,
+        attachmentKind,
+        attachmentFileId,
+        attachmentMimeType,
+      });
+      return;
+    }
+
+    if (!text && kind) {
       log.info(`Канал A ${chatId}: прислали ${kind} — передаю менеджеру`);
 
       if (canSendToClients) {
@@ -337,10 +389,21 @@ export function createBot(): Bot {
     const payload = ctx.match;
     log.info(`Канал B: /start от ${ctx.from?.id}${payload ? ` (${payload})` : ''}`);
 
+    // В группе /start жмут сотрудники, в личке — клиенты. Тексты разные.
+    if (ctx.chat.type !== 'private') {
+      await ctx.reply('Бот на месте. Напишите /chatid, чтобы получить ID этой группы.');
+      return;
+    }
+
     await ctx.reply(
-      'Здравствуйте! Это бот AKM Holdings.\n\n'
-      + 'Пока идёт настройка — доступна проверка связи.\n'
-      + 'Если вы сотрудник, добавьте бота в рабочую группу и напишите /chatid.',
+      isAssist
+        ? 'Здравствуйте! Это AKM Holdings.\n\n'
+          + 'Напишите, что вас интересует: наличие товара, цены, заказ. '
+          + 'Можно прислать фото или документ.\n\n'
+          + 'Вам ответит наш сотрудник.'
+        : 'Здравствуйте! Это бот AKM Holdings.\n\n'
+          + 'Пока идёт настройка — доступна проверка связи.\n'
+          + 'Если вы сотрудник, добавьте бота в группу и напишите /chatid.',
     );
   });
 
@@ -369,11 +432,17 @@ export function createBot(): Bot {
     const [conn] = await db.select().from(businessConnections)
       .orderBy(desc(businessConnections.updatedAt)).limit(1);
 
+    const debts = await calculateDebts();
+    const dormant = await findDormantMarkets();
+
     await ctx.reply(
-      `<b>Состояние бота</b>\n\n`
+      `<b>Состояние системы AKM Holdings</b>\n\n`
       + `Режим: <b>${config.MODE}</b>\n`
-      + `Канал A: ${conn ? (conn.isEnabled ? `подключён @${conn.ownerUsername ?? conn.ownerUserId}` : 'отключён') : 'не подключён'}\n`
-      + `ЭСФ всего: ${q?.total ?? 0} · выставлено: ${q?.issued ?? 0} · в работе: ${q?.posted ?? 0}`,
+      + `Канал A: ${conn ? (conn.isEnabled ? `подключён @${conn.ownerUsername ?? conn.ownerUserId}` : 'отключён') : 'не подключён'}\n\n`
+      + `📑 <b>ЭСФ (M1):</b> всего ${q?.total ?? 0} · выставлено: ${q?.issued ?? 0} · в работе: ${q?.posted ?? 0}\n`
+      + `💰 <b>Дебиторка (M5):</b> ${fmtSum(debts.totalDebt)} (просрочено: ${fmtSum(debts.totalOverdue)}, должников: ${debts.debtorsCount})\n`
+      + `💤 <b>Спящие точки (M4):</b> ${dormant.length} клиентов требуют реактивации\n\n`
+      + `<i>Команды: /debts, /reactivate, /esf, /digest</i>`,
       { parse_mode: 'HTML' },
     );
   });
@@ -388,6 +457,19 @@ export function createBot(): Bot {
   bot.command('digest', async (ctx) => {
     await postDailyDigest(ctx.api);
     await ctx.reply('Сводка отправлена.');
+  });
+
+  /** M5: Сводка дебиторской задолженности и старения */
+  bot.command(['debts', 'debt', 'dolgi'], async (ctx) => {
+    await postDebtSummary(ctx.api, ctx.chat.id);
+  });
+
+  /** M4: Поиск спящих клиентов и предложение товаров */
+  bot.command(['reactivate', 'sleeping', 'crm'], async (ctx) => {
+    const count = await postReactivationCards(ctx.api, ctx.chat.id);
+    if (count === 0) {
+      await ctx.reply('Спящих клиентов с нарушением привычного цикла заказа сейчас не найдено.');
+    }
   });
 
   /* ─────────── Кнопки ЭСФ ─────────── */
@@ -406,6 +488,173 @@ export function createBot(): Bot {
     if (res.edit) {
       await ctx.editMessageText(res.edit, { parse_mode: 'HTML' }).catch(() => {});
     }
+  });
+
+  /* ─────────── Кнопки дебиторки (M5) ─────────── */
+
+  bot.callbackQuery(/^debt:/, async (ctx) => {
+    const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await handleDebtCallback(ctx.api, ctx.callbackQuery.data, ctx.from.id, name);
+    await ctx.answerCallbackQuery({ text: res.answer.slice(0, 200), show_alert: res.alert ?? false });
+
+    if (res.edit) {
+      await ctx.editMessageText(res.edit, {
+        parse_mode: 'HTML',
+        reply_markup: res.keyboard,
+      }).catch(() => {});
+    }
+  });
+
+  /* ─────────── Кнопки реактивации спящих клиентов (M4) ─────────── */
+
+  bot.callbackQuery(/^m4:/, async (ctx) => {
+    const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await handleReactivationCallback(ctx.api, ctx.callbackQuery.data, ctx.from.id, name);
+    await ctx.answerCallbackQuery({ text: res.answer.slice(0, 200), show_alert: res.alert ?? false });
+
+    if (res.edit) {
+      await ctx.editMessageText(res.edit, {
+        parse_mode: 'HTML',
+        reply_markup: res.keyboard,
+      }).catch(() => {});
+    }
+  });
+
+  /* ─────────── Полуавтомат: кнопки карточек ─────────── */
+
+  bot.callbackQuery(/^req:/, async (ctx) => {
+    const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await handleAssistCallback(ctx.api, ctx.callbackQuery.data, ctx.from.id, name);
+    await ctx.answerCallbackQuery({ text: res.answer.slice(0, 200), show_alert: res.alert ?? false });
+
+    if (res.edit) {
+      await ctx.editMessageText(res.edit, {
+        parse_mode: 'HTML',
+        reply_markup: res.keyboard,
+      }).catch(() => {});
+    }
+  });
+
+  /* Ответ сотрудника на карточку — доставляем клиенту */
+
+  bot.on('message:text', async (ctx, next) => {
+    const reply = ctx.message.reply_to_message;
+    const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+
+    // Реагируем только на ответы на сообщения самого бота в рабочей группе
+    if (!isGroup || !reply || reply.from?.id !== ctx.me.id) return next();
+    if (ctx.message.text.startsWith('/')) return next();
+
+    const staff = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await relayStaffReply(ctx.api, reply.message_id, ctx.message.text, staff);
+
+    // Ответили на карточку ЭСФ или на любое другое сообщение бота —
+    // это не наше дело, молчим и пропускаем дальше.
+    if (!res.ok && res.notACard) return next();
+
+    await ctx.reply(res.ok ? `✅ ${res.note}` : `⚠️ ${res.note}`, {
+      reply_parameters: { message_id: ctx.message.message_id },
+    });
+  });
+
+  /* ─────────── Канал B: клиент пишет прямо боту ─────────── */
+
+  /**
+   * Без Telegram Premium канал A недоступен, и клиенты пишут не в рабочий
+   * аккаунт, а самому боту. Полуавтомат от этого не меняется: то же
+   * обращение, та же карточка, тот же ответ реплаем из группы.
+   * Разница одна — клиенту надо один раз нажать «Старт».
+   */
+  bot.on('message', async (ctx, next) => {
+    if (ctx.chat.type !== 'private') return next();
+    if (!isAssist) return next();
+
+    const msg = ctx.message;
+    if (msg.text?.startsWith('/')) return next();
+
+    const kind = describeNonText(msg);
+    if (kind === 'sticker') return;
+    // Контакт обрабатывает отдельный обработчик ниже — там привязка по телефону
+    if (kind === 'contact') return next();
+
+    let text = msg.text ?? msg.caption ?? '';
+    if (!text && !kind) return next();
+
+    let attachmentKind = kind ? (KIND_RU[kind] ?? kind) : undefined;
+    const rawMsg = msg as Record<string, any>;
+
+    // Голосовые и аудио в канале B
+    if (kind === 'voice' || kind === 'audio') {
+      const audioId = rawMsg.voice?.file_id ?? rawMsg.audio?.file_id;
+      const audioMime = rawMsg.voice?.mime_type ?? rawMsg.audio?.mime_type ?? 'audio/ogg';
+      if (audioId) {
+        try {
+          const { buffer } = await downloadTelegramFile(ctx.api, audioId);
+          const transcript = await transcribeAudio(buffer, audioMime);
+          if (transcript) {
+            log.info(`Канал B ${ctx.chat.id}: голосовое расшифровано -> «${transcript}»`);
+            text = transcript;
+            attachmentKind = 'голосовое (расшифровано)';
+          }
+        } catch (e) {
+          log.warn(`Канал B ${ctx.chat.id}: не удалось расшифровать аудио: ${(e as Error).message}`);
+        }
+      }
+    }
+
+    // Документы и фото для OCR в канале B
+    let attachmentFileId: string | undefined;
+    let attachmentMimeType: string | undefined;
+    if (kind === 'document') {
+      attachmentFileId = rawMsg.document?.file_id;
+      attachmentMimeType = rawMsg.document?.mime_type ?? 'application/pdf';
+    } else if (kind === 'photo') {
+      attachmentFileId = rawMsg.photo?.at(-1)?.file_id;
+      attachmentMimeType = 'image/jpeg';
+    }
+
+    const db = await getDb();
+
+    await db.insert(customers).values({
+      tgUserId: ctx.from.id,
+      firstName: ctx.from.first_name ?? null,
+      username: ctx.from.username ?? null,
+    }).onConflictDoUpdate({
+      target: customers.tgUserId,
+      set: { firstName: ctx.from.first_name ?? null, username: ctx.from.username ?? null },
+    });
+
+    await db.insert(messages).values({
+      channel: 'B',
+      chatId: ctx.chat.id,
+      tgMessageId: msg.message_id,
+      direction: 'in',
+      author: 'client',
+      text: text || `[${KIND_RU[kind ?? 'other'] ?? 'вложение'}]`,
+      mode: config.MODE,
+    });
+
+    log.info(`Канал B ${ctx.chat.id} · ${ctx.from.first_name ?? '?'}: ${text || `[${kind}]`}`);
+
+    // business_connection_id не передаём — ответ уйдёт от имени бота
+    await handleIncoming(ctx.api, {
+      chatId: ctx.chat.id,
+      messageId: msg.message_id,
+      clientName: ctx.from.first_name ?? 'клиент',
+      username: ctx.from.username,
+      text,
+      attachmentKind,
+      attachmentFileId,
+      attachmentMimeType,
+    });
   });
 
   /* ─────────── Канал B: контакт для привязки ─────────── */

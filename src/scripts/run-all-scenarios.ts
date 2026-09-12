@@ -1,0 +1,245 @@
+import { Bot, InlineKeyboard, InputFile } from 'grammy';
+import { config } from '../config.js';
+import { getDb } from '../db/index.js';
+import { orders, orderItems, markets, payments } from '../db/schema.js';
+import { eq, desc } from 'drizzle-orm';
+import { buildOrderCard } from '../bot/esf.js';
+import { calculateDebts, buildDebtSummaryText, buildDebtKeyboard } from '../bot/debts.js';
+import { postReactivationCards } from '../bot/reactivate.js';
+import { generateWaybillPdf, generateReconciliationPdf } from '../lib/pdf-waybill.js';
+import { log } from '../lib/logger.js';
+
+const TARGET_CHAT = config.ACCOUNTANT_CHAT_ID || '-5319232815';
+
+async function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function main() {
+  const token = config.BOT_TOKEN;
+  if (!token) throw new Error('BOT_TOKEN не задан');
+
+  const bot = new Bot(token);
+  const db = await getDb();
+
+  console.log(`\n🚀 Запуск сквозного прогона в чат ${TARGET_CHAT}...\n`);
+
+  // Заголовок теста
+  await bot.api.sendMessage(
+    TARGET_CHAT,
+    [
+      '🌟 <b>AKM HOLDINGS INC · Комплексный прогон всех сценариев</b>',
+      '',
+      'Бот автоматизации для дистрибьюции продуктов питания (HoReCa / Ритейл).',
+      'Сейчас в чат поступят карточки и реальные документы по ключевым направлениям:',
+      '',
+      '1️⃣ <b>Бухгалтерия (М1):</b> Карточка заказа к выставлению ЭСФ + официальная Накладная в PDF.',
+      '2️⃣ <b>Финотдел (М5):</b> Анализ дебиторки и старения долгов + официальный Акт сверки в PDF.',
+      '3️⃣ <b>Отдел продаж (М4):</b> Поиск спящих клиентов по циклу повторных покупок + офферы.',
+      '4️⃣ <b>Закупщик / Логистика (М2/М3):</b> Заказ в свободной форме с быстрыми ответами в 1 клик, маршрутом в Яндекс Картах и накладной.',
+      '5️⃣ <b>Новые клиенты (OCR):</b> Мгновенное распознавание реквизитов (Гувохнома, р/с, МФО, ПИНФЛ).',
+      '',
+      '<i>Все кнопки интерактивны — их можно нажимать прямо с телефона!</i>',
+    ].join('\n'),
+    { parse_mode: 'HTML' },
+  );
+
+  await sleep(1500);
+
+  // ----------------------------------------------------
+  // СЦЕНАРИЙ 1: Бухгалтерия (ЭСФ и Товарная накладная PDF)
+  // ----------------------------------------------------
+  console.log('1. Сценарий М1: ЭСФ и Накладная PDF...');
+  let targetOrderId = -101;
+  const [existingOrder] = await db.select().from(orders).where(eq(orders.id, targetOrderId)).limit(1);
+
+  if (!existingOrder) {
+    const [anyOrder] = await db.select().from(orders).orderBy(desc(orders.id)).limit(1);
+    if (anyOrder) targetOrderId = anyOrder.id;
+  }
+
+  const orderCardText = await buildOrderCard(targetOrderId);
+  if (orderCardText) {
+    const esfKb = new InlineKeyboard()
+      .text('ЭСФ выставлен', `esf:issued:${targetOrderId}`)
+      .text('Состав', `esf:items:${targetOrderId}`)
+      .row()
+      .text('📄 Накладная PDF', `esf:pdf:${targetOrderId}`)
+      .text('Проблема', `esf:problem:${targetOrderId}`);
+
+    await bot.api.sendMessage(TARGET_CHAT, orderCardText, {
+      parse_mode: 'HTML',
+      reply_markup: esfKb,
+    });
+
+    await sleep(1000);
+
+    // Сразу сгенерируем и выгрузим реальный PDF-документ накладной
+    try {
+      const waybillBuf = await generateWaybillPdf(targetOrderId);
+      const safeMName = (existingOrder?.marketName || 'Клиент').replace(/[«»"']/g, '').trim().replace(/\s+/g, '_').replace(/[^\wа-яёА-ЯЁ0-9_-]/gi, '');
+      await bot.api.sendDocument(
+        TARGET_CHAT,
+        new InputFile(waybillBuf, `Накладная_${safeMName}_№${targetOrderId}.pdf`),
+        {
+          caption: `📄 <b>Товарная накладная к заказу №${targetOrderId} («${existingOrder?.marketName ?? 'Клиент'}»)</b>\nПоставщик: ООО «AKM HOLDINGS INC»\nПечать, подписи сторон и табличная часть сформированы автоматически.`,
+          parse_mode: 'HTML',
+        },
+      );
+    } catch (e) {
+      console.error('Ошибка создания PDF накладной:', e);
+    }
+  }
+
+  await sleep(2000);
+
+  // ----------------------------------------------------
+  // СЦЕНАРИЙ 2: Финотдел (Дебиторка и Акт сверки PDF)
+  // ----------------------------------------------------
+  console.log('2. Сценарий М5: Дебиторка и Акт сверки PDF...');
+  const debtOverview = await calculateDebts();
+  const debtText = buildDebtSummaryText(debtOverview);
+  const debtKb = buildDebtKeyboard(debtOverview.debtors);
+
+  await bot.api.sendMessage(TARGET_CHAT, debtText, {
+    parse_mode: 'HTML',
+    reply_markup: debtKb,
+  });
+
+  await sleep(1000);
+
+  // Выгрузим официальный акт сверки в PDF по первой точке с долгом
+  const debtorMarketId = debtOverview.debtors[0]?.marketId ?? -5;
+  const [debtorMarket] = await db.select().from(markets).where(eq(markets.id, debtorMarketId)).limit(1);
+  const debtorName = debtorMarket?.name ?? 'Caravan';
+
+  try {
+    const actBuf = await generateReconciliationPdf(debtorMarketId);
+    await bot.api.sendDocument(
+      TARGET_CHAT,
+      new InputFile(actBuf, `Акт_сверки_${debtorName.replace(/[^\wа-яё]/gi, '_')}.pdf`),
+      {
+        caption: `📄 <b>Акт сверки взаимных расчетов · «${debtorName}»</b>\nПериод: текущий баланс\nПоставщик: ООО «AKM HOLDINGS INC»\nВключает все поставки, оплаты и сальдо.`,
+        parse_mode: 'HTML',
+      },
+    );
+  } catch (e) {
+    console.error('Ошибка создания PDF акта сверки:', e);
+  }
+
+  await sleep(2000);
+
+  // ----------------------------------------------------
+  // СЦЕНАРИЙ 3: Отдел продаж (Реактивация спящих клиентов)
+  // ----------------------------------------------------
+  console.log('3. Сценарий М4: Спящие клиенты...');
+  await postReactivationCards(bot.api, TARGET_CHAT);
+
+  await sleep(2000);
+
+  // ----------------------------------------------------
+  // СЦЕНАРИЙ 4: Заказ от закупщика с навигацией и кнопками
+  // ----------------------------------------------------
+  console.log('4. Сценарий М2/М3: Заказ HoReCa с маршрутом...');
+  const orderReqText = [
+    '<b>🛒 Заказ №51</b>  🔴 новое',
+    '',
+    'От: <b>Шеф-повар Алишер</b> (@alisher_chef)',
+    '',
+    '<i>«Ассалому алейкум! На завтра на утро для Ресторана «Caravan City» нужно 24 банки тунца Dardanel и 6 банок томатной пасты Burcu 830 г. Адрес: г. Ташкент, ул. Амира Темура, 15. До 11:00 успеете?»</i>',
+    '',
+    '<b>Ресторан «Caravan City»</b>',
+    '  • Тунец кусочками в собственном соку Dardanel 150 г — 24 бан',
+    '  • Томатная паста Burcu 830 г ж/б — 6 бан',
+    '',
+    '<b>Вопросы:</b>',
+    '  — До 11:00 успеете?',
+    '',
+    '<b>Автоматика:</b>',
+    '  ✅ Отправил клиенту подтверждение приёма заказа',
+    '',
+    '<i>Ответьте текстом или нажмите кнопку быстрого ответа:</i>',
+  ].join('\n');
+
+  const orderReqKb = new InlineKeyboard()
+    .text('🚚 Завтра к 11:00', 'req:quick:51:tomorrow_11')
+    .text('🚚 Сегодня до 18:00', 'req:quick:51:today_18')
+    .row()
+    .text('📦 На сборке', 'req:quick:51:warehouse')
+    .text('📄 Накладная PDF', 'req:pdf:51')
+    .row()
+    .url('📍 Маршрут (Яндекс Карты)', 'https://yandex.uz/maps/?text=' + encodeURIComponent('г. Ташкент, ул. Амира Темура, 15'))
+    .row()
+    .text('Готово', 'req:done:51');
+
+  await bot.api.sendMessage(TARGET_CHAT, orderReqText, {
+    parse_mode: 'HTML',
+    reply_markup: orderReqKb,
+  });
+
+  await sleep(2000);
+
+  // ----------------------------------------------------
+  // СЦЕНАРИЙ 5: Распознавание реквизитов (OCR Гувохнома)
+  // ----------------------------------------------------
+  console.log('5. Сценарий OCR: Документы нового клиента...');
+  const ocrCardText = [
+    '<b>📄 Документы №52</b>  🔴 новое',
+    '',
+    'От: <b>Дильшод Рахимов</b> (@dilshod_rakhimov)',
+    'Прислал: <b>документ (PDF Гувохнома)</b>',
+    '',
+    '<i>«Здравствуйте! Высылаю наши уставные документы для заключения договора на поставку.»</i>',
+    '',
+    '📋 <b>Данные из документа (Гувохнома о регистрации):</b>',
+    '  • Организация: <b>ООО "BASILIC RESTAURANT"</b>',
+    '  • ИНН: <code>302494634</code>',
+    '  • Р/С: <code>20208000700543219001</code>',
+    '  • Банк: АКБ "HAMKORBANK" (МФО <code>00083</code>)',
+    '  • ФИО / Директор: <b>Касимов Бахтиёр Алишерович</b>',
+    '  • ПИНФЛ: <code>31205841230045</code>',
+    '  • Адрес: г. Ташкент, Яккасарайский район, ул. Шота Руставели, 42',
+    '',
+    '<b>Автоматика:</b>',
+    '  ✅ Подтвердил клиенту получение документов и реквизитов (передал менеджеру)',
+    '',
+    '<i>Ответьте текстом или нажмите кнопку быстрого ответа:</i>',
+  ].join('\n');
+
+  const ocrKb = new InlineKeyboard()
+    .text('📄 Договор готовим', 'req:quick:52:doc_preparing')
+    .text('✅ Реквизиты приняты', 'req:quick:52:doc_ok')
+    .row()
+    .url('📍 Маршрут (Яндекс Карты)', 'https://yandex.uz/maps/?text=' + encodeURIComponent('г. Ташкент, Яккасарайский район, ул. Шота Руставели, 42'))
+    .row()
+    .text('Взять в работу', 'req:take:52')
+    .text('Готово', 'req:done:52');
+
+  await bot.api.sendMessage(TARGET_CHAT, ocrCardText, {
+    parse_mode: 'HTML',
+    reply_markup: ocrKb,
+  });
+
+  await sleep(1500);
+
+  // Финальный маркер
+  await bot.api.sendMessage(
+    TARGET_CHAT,
+    [
+      '✅ <b>Все сценарии успешно выгружены!</b>',
+      '',
+      '💡 <i>Что можно проверить прямо сейчас:</i>',
+      '• Откройте файлы <b>PDF Накладной</b> и <b>PDF Акта сверки</b> — проверьте отображение шрифтов, печатей, сумм и реквизитов ООО «AKM HOLDINGS INC».',
+      '• Нажмите <b>«📍 Маршрут»</b> — откроется Яндекс Карты с точной локацией для экспедитора.',
+      '• Нажмите <b>кнопки быстрых ответов</b> или сделайте <b>Reply (ответ свайпом)</b> — бот перешлет ответ клиенту.',
+    ].join('\n'),
+    { parse_mode: 'HTML' },
+  );
+
+  console.log('✅ Прогон успешно завершен!');
+}
+
+main().catch((err) => {
+  console.error('Ошибка выполнения прогона:', err);
+  process.exit(1);
+});

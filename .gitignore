@@ -5,9 +5,16 @@ node_modules/
 dist/
 *.log
 
-# Данные клиентов — не коммитить
-*.xlsx
-
-# Свои файлы для бота — не коммитить
+# Клиентские документы и рабочие скрипты
+client_docs/
+scratch/
 media.json
 media/
+*.xlsx
+*.pdf
+*.jpg
+*.png
+
+# Шрифты для PDF генерации
+!assets/fonts/*.ttf
+

@@ -11,6 +11,10 @@ import { sendAttachments } from './media.js';
 import { canSendToClients, isAssist } from '../config.js';
 import { handleIncoming, handleAssistCallback, relayStaffReply } from './assist.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
+import { downloadTelegramFile, transcribeAudio } from '../ai/media-ai.js';
+import { postDebtSummary, handleDebtCallback, calculateDebts } from './debts.js';
+import { postReactivationCards, handleReactivationCallback, findDormantMarkets } from './reactivate.js';
+import { fmtSum } from '../lib/money.js';
 
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -189,28 +193,62 @@ export function createBot(): Bot {
       }
     }
 
-    // Реальная переписка наполовину состоит из файлов, фото и локаций.
-    // Молча их терять нельзя: клиент прислал паспорт и ждёт реакции.
-    const text = msg.text ?? msg.caption ?? '';
+    // Реальная переписка наполовину состоит из файлов, фото, документов и голосовых
+    let text = msg.text ?? msg.caption ?? '';
     const kind = describeNonText(msg);
 
-    if (!text && kind) {
-      // Стикеры — единственное, на что отвечать не надо
-      if (kind === 'sticker') return;
+    // Стикеры — единственное, на что отвечать не надо
+    if (kind === 'sticker') return;
 
-      // Полуавтомат: вложение тоже становится карточкой в группе
-      if (isAssist) {
-        await handleIncoming(ctx.api, {
-          chatId, messageId: msg.message_id,
-          businessConnectionId: connId,
-          clientName: ctx.from?.first_name ?? 'клиент',
-          username: ctx.from?.username,
-          text: '',
-          attachmentKind: KIND_RU[kind] ?? kind,
-        });
-        return;
+    let attachmentKind = kind ? (KIND_RU[kind] ?? kind) : undefined;
+    const rawMsg = msg as Record<string, any>;
+
+    // Голосовые и аудио: расшифровываем в текст через Gemini Audio
+    if (kind === 'voice' || kind === 'audio') {
+      const audioId = rawMsg.voice?.file_id ?? rawMsg.audio?.file_id;
+      const audioMime = rawMsg.voice?.mime_type ?? rawMsg.audio?.mime_type ?? 'audio/ogg';
+      if (audioId) {
+        try {
+          const { buffer } = await downloadTelegramFile(ctx.api, audioId);
+          const transcript = await transcribeAudio(buffer, audioMime);
+          if (transcript) {
+            log.info(`Канал A ${chatId}: голосовое расшифровано -> «${transcript}»`);
+            text = transcript;
+            attachmentKind = 'голосовое (расшифровано)';
+          }
+        } catch (e) {
+          log.warn(`Канал A ${chatId}: не удалось расшифровать аудио: ${(e as Error).message}`);
+        }
       }
+    }
 
+    // Документы и фото: извлекаем fileId для последующего OCR реквизитов
+    let attachmentFileId: string | undefined;
+    let attachmentMimeType: string | undefined;
+    if (kind === 'document') {
+      attachmentFileId = rawMsg.document?.file_id;
+      attachmentMimeType = rawMsg.document?.mime_type ?? 'application/pdf';
+    } else if (kind === 'photo') {
+      attachmentFileId = rawMsg.photo?.at(-1)?.file_id;
+      attachmentMimeType = 'image/jpeg';
+    }
+
+    // Полуавтомат: обработка обращения
+    if (isAssist) {
+      await handleIncoming(ctx.api, {
+        chatId, messageId: msg.message_id,
+        businessConnectionId: connId,
+        clientName: ctx.from?.first_name ?? 'клиент',
+        username: ctx.from?.username,
+        text,
+        attachmentKind,
+        attachmentFileId,
+        attachmentMimeType,
+      });
+      return;
+    }
+
+    if (!text && kind) {
       log.info(`Канал A ${chatId}: прислали ${kind} — передаю менеджеру`);
 
       if (canSendToClients) {
@@ -247,19 +285,6 @@ export function createBot(): Bot {
     }
 
     if (!text) return;
-
-    // Полуавтомат: бот не отвечает вовсе — заводим карточку и уходим.
-    // Разбираются сотрудники, ответ доставляется через relayStaffReply.
-    if (isAssist) {
-      await handleIncoming(ctx.api, {
-        chatId, messageId: msg.message_id,
-        businessConnectionId: connId,
-        clientName: ctx.from?.first_name ?? 'клиент',
-        username: ctx.from?.username,
-        text,
-      });
-      return;
-    }
 
     const cust = ctx.from
       ? (await db.select().from(customers).where(eq(customers.tgUserId, ctx.from.id)).limit(1))[0]
@@ -407,11 +432,17 @@ export function createBot(): Bot {
     const [conn] = await db.select().from(businessConnections)
       .orderBy(desc(businessConnections.updatedAt)).limit(1);
 
+    const debts = await calculateDebts();
+    const dormant = await findDormantMarkets();
+
     await ctx.reply(
-      `<b>Состояние бота</b>\n\n`
+      `<b>Состояние системы AKM Holdings</b>\n\n`
       + `Режим: <b>${config.MODE}</b>\n`
-      + `Канал A: ${conn ? (conn.isEnabled ? `подключён @${conn.ownerUsername ?? conn.ownerUserId}` : 'отключён') : 'не подключён'}\n`
-      + `ЭСФ всего: ${q?.total ?? 0} · выставлено: ${q?.issued ?? 0} · в работе: ${q?.posted ?? 0}`,
+      + `Канал A: ${conn ? (conn.isEnabled ? `подключён @${conn.ownerUsername ?? conn.ownerUserId}` : 'отключён') : 'не подключён'}\n\n`
+      + `📑 <b>ЭСФ (M1):</b> всего ${q?.total ?? 0} · выставлено: ${q?.issued ?? 0} · в работе: ${q?.posted ?? 0}\n`
+      + `💰 <b>Дебиторка (M5):</b> ${fmtSum(debts.totalDebt)} (просрочено: ${fmtSum(debts.totalOverdue)}, должников: ${debts.debtorsCount})\n`
+      + `💤 <b>Спящие точки (M4):</b> ${dormant.length} клиентов требуют реактивации\n\n`
+      + `<i>Команды: /debts, /reactivate, /esf, /digest</i>`,
       { parse_mode: 'HTML' },
     );
   });
@@ -426,6 +457,19 @@ export function createBot(): Bot {
   bot.command('digest', async (ctx) => {
     await postDailyDigest(ctx.api);
     await ctx.reply('Сводка отправлена.');
+  });
+
+  /** M5: Сводка дебиторской задолженности и старения */
+  bot.command(['debts', 'debt', 'dolgi'], async (ctx) => {
+    await postDebtSummary(ctx.api, ctx.chat.id);
+  });
+
+  /** M4: Поиск спящих клиентов и предложение товаров */
+  bot.command(['reactivate', 'sleeping', 'crm'], async (ctx) => {
+    const count = await postReactivationCards(ctx.api, ctx.chat.id);
+    if (count === 0) {
+      await ctx.reply('Спящих клиентов с нарушением привычного цикла заказа сейчас не найдено.');
+    }
   });
 
   /* ─────────── Кнопки ЭСФ ─────────── */
@@ -446,13 +490,47 @@ export function createBot(): Bot {
     }
   });
 
+  /* ─────────── Кнопки дебиторки (M5) ─────────── */
+
+  bot.callbackQuery(/^debt:/, async (ctx) => {
+    const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await handleDebtCallback(ctx.api, ctx.callbackQuery.data, ctx.from.id, name);
+    await ctx.answerCallbackQuery({ text: res.answer.slice(0, 200), show_alert: res.alert ?? false });
+
+    if (res.edit) {
+      await ctx.editMessageText(res.edit, {
+        parse_mode: 'HTML',
+        reply_markup: res.keyboard,
+      }).catch(() => {});
+    }
+  });
+
+  /* ─────────── Кнопки реактивации спящих клиентов (M4) ─────────── */
+
+  bot.callbackQuery(/^m4:/, async (ctx) => {
+    const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
+      || ctx.from.username || String(ctx.from.id);
+
+    const res = await handleReactivationCallback(ctx.api, ctx.callbackQuery.data, ctx.from.id, name);
+    await ctx.answerCallbackQuery({ text: res.answer.slice(0, 200), show_alert: res.alert ?? false });
+
+    if (res.edit) {
+      await ctx.editMessageText(res.edit, {
+        parse_mode: 'HTML',
+        reply_markup: res.keyboard,
+      }).catch(() => {});
+    }
+  });
+
   /* ─────────── Полуавтомат: кнопки карточек ─────────── */
 
   bot.callbackQuery(/^req:/, async (ctx) => {
     const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
       || ctx.from.username || String(ctx.from.id);
 
-    const res = await handleAssistCallback(ctx.callbackQuery.data, ctx.from.id, name);
+    const res = await handleAssistCallback(ctx.api, ctx.callbackQuery.data, ctx.from.id, name);
     await ctx.answerCallbackQuery({ text: res.answer.slice(0, 200), show_alert: res.alert ?? false });
 
     if (res.edit) {
@@ -507,8 +585,41 @@ export function createBot(): Bot {
     // Контакт обрабатывает отдельный обработчик ниже — там привязка по телефону
     if (kind === 'contact') return next();
 
-    const text = msg.text ?? msg.caption ?? '';
+    let text = msg.text ?? msg.caption ?? '';
     if (!text && !kind) return next();
+
+    let attachmentKind = kind ? (KIND_RU[kind] ?? kind) : undefined;
+    const rawMsg = msg as Record<string, any>;
+
+    // Голосовые и аудио в канале B
+    if (kind === 'voice' || kind === 'audio') {
+      const audioId = rawMsg.voice?.file_id ?? rawMsg.audio?.file_id;
+      const audioMime = rawMsg.voice?.mime_type ?? rawMsg.audio?.mime_type ?? 'audio/ogg';
+      if (audioId) {
+        try {
+          const { buffer } = await downloadTelegramFile(ctx.api, audioId);
+          const transcript = await transcribeAudio(buffer, audioMime);
+          if (transcript) {
+            log.info(`Канал B ${ctx.chat.id}: голосовое расшифровано -> «${transcript}»`);
+            text = transcript;
+            attachmentKind = 'голосовое (расшифровано)';
+          }
+        } catch (e) {
+          log.warn(`Канал B ${ctx.chat.id}: не удалось расшифровать аудио: ${(e as Error).message}`);
+        }
+      }
+    }
+
+    // Документы и фото для OCR в канале B
+    let attachmentFileId: string | undefined;
+    let attachmentMimeType: string | undefined;
+    if (kind === 'document') {
+      attachmentFileId = rawMsg.document?.file_id;
+      attachmentMimeType = rawMsg.document?.mime_type ?? 'application/pdf';
+    } else if (kind === 'photo') {
+      attachmentFileId = rawMsg.photo?.at(-1)?.file_id;
+      attachmentMimeType = 'image/jpeg';
+    }
 
     const db = await getDb();
 
@@ -540,7 +651,9 @@ export function createBot(): Bot {
       clientName: ctx.from.first_name ?? 'клиент',
       username: ctx.from.username,
       text,
-      attachmentKind: text ? undefined : (KIND_RU[kind ?? 'other'] ?? 'вложение'),
+      attachmentKind,
+      attachmentFileId,
+      attachmentMimeType,
     });
   });
 

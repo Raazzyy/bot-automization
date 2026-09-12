@@ -24,18 +24,33 @@ Telegram-агент для AKM Holdings с интеграцией Linko.
 
 ---
 
-## Запуск за пять минут
+## Быстрый запуск на Replit 🚀
+
+1. В Replit нажать **Create Repl** → **Import from GitHub** → указать ссылку на репозиторий `https://github.com/Raazzyy/bot-automization`.
+2. В левой панели открыть **Tools** → **Secrets** (или `.env`) и добавить переменные:
+   - `LINKO_BASE_URL` = `https://akm.linko.uz`
+   - `LINKO_TOKEN` = `<ваш_токен_linko>`
+   - `BOT_TOKEN` = `<токен_telegram_бота>`
+   - `ACCOUNTANT_CHAT_ID` = `<id_группы_бухгалтерии>`
+   - `ASSIST_CHAT_ID` = `<id_группы_полуавтомата>`
+   - `MODE` = `assist` (или `dry_run` для проверки)
+   - `GEMINI_API_KEY` = `<ключ_gemini>` (опционально, для AI-ассистента)
+3. Нажать кнопку **Run** (сверху). Replit установит зависимости и запустит бота (`npm run dev`) с автоматическим HTTP Health Check.
+
+---
+
+## Локальный запуск за пять минут
 
 ```bash
 npm install
 cp .env.example .env      # заполнить, см. ниже
 npm run check             # проверка всех подключений
-npm run seed              # демо-данные (пока Linko закрыт)
-npm run dev               # запуск
+npm run dev               # запуск бота и синхронизации
 ```
 
 `npm run check` проверяет базу, Linko и Telegram и говорит, чего не хватает.
 Запускайте его после каждого изменения `.env`.
+
 
 ---
 

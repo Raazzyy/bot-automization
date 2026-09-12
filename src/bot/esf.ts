@@ -1,13 +1,14 @@
 import type { Api } from 'grammy';
-import { InlineKeyboard } from 'grammy';
+import { InlineKeyboard, InputFile } from 'grammy';
 import { and, eq, inArray, isNull, sql, desc } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
 import { orders, orderItems, esfQueue, payments } from '../db/schema.js';
 import { config } from '../config.js';
 import { linko } from '../linko/client.js';
 import { send } from './send.js';
-import { fmtSum, fmtDate, fmtAmount, fmtNum } from '../lib/money.js';
+import { fmtSum, fmtDate, fmtAmount, fmtNum, todayTashkent } from '../lib/money.js';
 import { log } from '../lib/logger.js';
+import { generateWaybillPdf } from '../lib/pdf-waybill.js';
 
 /** Статусы, при которых заказ подлежит выставлению ЭСФ */
 const BILLABLE = ['delivered', 'given'] as const;
@@ -73,6 +74,7 @@ function esfKeyboard(orderId: number): InlineKeyboard {
     .text('ЭСФ выставлен', `esf:issued:${orderId}`)
     .text('Состав', `esf:items:${orderId}`)
     .row()
+    .text('📄 Накладная PDF', `esf:pdf:${orderId}`)
     .text('Проблема', `esf:problem:${orderId}`);
 }
 
@@ -86,8 +88,21 @@ export async function postNewOrders(api: Api): Promise<number> {
   }
 
   const db = await getDb();
+  const today = todayTashkent();
 
-  // Заказы, подлежащие ЭСФ и ещё не попавшие в очередь
+  // Автоматически архивируем все исторические заказы прошлых дней, чтобы они никогда не спамились в Telegram
+  try {
+    await db.execute(sql`
+      INSERT INTO esf_queue (order_id, status)
+      SELECT id, 'archived' FROM orders
+      WHERE created_date < ${today}
+      ON CONFLICT (order_id) DO NOTHING
+    `);
+  } catch (e) {
+    log.warn('Не удалось архивировать исторические заказы', (e as Error).message);
+  }
+
+  // Заказы, созданные СЕГОДНЯ, подлежащие ЭСФ и ещё не попавшие в очередь
   const fresh = await db
     .select({ id: orders.id })
     .from(orders)
@@ -95,6 +110,7 @@ export async function postNewOrders(api: Api): Promise<number> {
     .where(and(
       inArray(orders.status, [...BILLABLE]),
       isNull(esfQueue.orderId),
+      sql`${orders.createdDate} >= ${today}`,
     ))
     .orderBy(desc(orders.id))
     .limit(20);
@@ -137,11 +153,15 @@ export async function postNewPayments(api: Api): Promise<number> {
   if (!chat) return 0;
 
   const db = await getDb();
+  const today = todayTashkent();
+
+  // Публикуем перечисления, поступившие СЕГОДНЯ (не поднимаем архивы за 2022-2025)
   const rows = await db.select().from(payments)
     .where(and(
       eq(payments.paymentType, 'bank'),
       eq(payments.status, 'accepted'),
       eq(payments.isDelete, false),
+      sql`${payments.createdDate} >= ${today}`,
     ))
     .orderBy(desc(payments.id))
     .limit(20);
@@ -200,6 +220,22 @@ export async function handleEsfCallback(
       channel: 'B',
     });
     return { answer: 'Состав отправлен в чат' };
+  }
+
+  if (action === 'pdf') {
+    try {
+      const pdfBuf = await generateWaybillPdf(orderId);
+      const staffChat = config.ACCOUNTANT_CHAT_ID || '-5319232815';
+      await api.sendDocument(
+        staffChat,
+        new InputFile(pdfBuf, `Накладная_№${orderId}.pdf`),
+        { caption: `📄 Официальная товарная накладная по заказу №${orderId} (ООО «AKM HOLDINGS INC»)` },
+      );
+      return { answer: 'Накладная PDF отправлена в чат!' };
+    } catch (err) {
+      log.error(`M1: ошибка генерации PDF для заказа №${orderId}`, err);
+      return { answer: `Ошибка: ${(err as Error).message}`, alert: true };
+    }
   }
 
   if (action === 'issued') {

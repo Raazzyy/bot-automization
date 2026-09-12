@@ -90,8 +90,7 @@ const INSTRUCTION = `
   Названия юрлиц пиши так, как написал клиент: «Basilic», «ООО Sakura City».
 - qty и unit заполняй, только если клиент их назвал. Не додумывай.
 - questions: всё, что клиент спросил, кроме самого заказа. Дословно и коротко.
-- aboutDocuments: true, если речь о договоре, спецификации, доверенности,
-  счёте, ЭСФ, Дедоксе, реквизитах, оплате, предоплате, пакете документов.
+- aboutDocuments: true, ТОЛЬКО если клиент присылает или обсуждает свои реквизиты, заключение договора, доверенность, банковскую оплату, присылает уставные документы. Если клиент просто просит выслать ему накладную, чек или акт сверки по заказу — это aboutDocuments: false!
 - summary: одна короткая строка по-русски, суть сообщения.
   Например «Заказ: тунец 48 шт на две фирмы» или «Спрашивает про наличие сельди».
 
@@ -111,11 +110,10 @@ export async function extractRequest(text: string): Promise<Extracted> {
           contents: [{ role: 'user', parts: [{ text }] }],
           systemInstruction: { parts: [{ text: INSTRUCTION }] },
           generationConfig: {
-            temperature: 0,
+            temperature: 0.1,
             maxOutputTokens: 2048,
             responseMimeType: 'application/json',
             responseSchema: SCHEMA,
-            thinkingConfig: { thinkingLevel: 'low' },
           },
         }),
         signal: AbortSignal.timeout(30_000),

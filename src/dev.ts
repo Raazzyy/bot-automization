@@ -4,6 +4,7 @@
  *
  *   npm run dev
  */
+import { createServer, type Server } from 'node:http';
 import { config } from './config.js';
 import { migrate } from './db/migrate.js';
 import { closeDb } from './db/index.js';
@@ -11,6 +12,7 @@ import { createBot } from './bot/index.js';
 import { postNewOrders, postNewPayments } from './bot/esf.js';
 import { syncAll } from './linko/sync.js';
 import { log } from './lib/logger.js';
+
 
 /** Эти типы апдейтов Telegram не присылает по умолчанию — их надо запросить явно */
 const ALLOWED_UPDATES = [
@@ -64,12 +66,25 @@ async function main() {
 
   if (config.BOT_TOKEN) {
     bot = createBot();
-    const me = await bot.api.getMe();
-    log.info(`Telegram: @${me.username}`);
+    let me: { username?: string; can_connect_to_business?: boolean } | null = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        me = await bot.api.getMe();
+        break;
+      } catch (e) {
+        log.warn(`Telegram API: попытка ${attempt}/5 подключения не удалась: ${(e as Error).message}`);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
 
-    if (!me.can_connect_to_business) {
-      log.warn('У бота выключен Secretary Mode — канал A работать не будет.');
-      log.warn('@BotFather → /mybots → бот → Bot Settings → Secretary Mode (раньше назывался Business Mode)');
+    if (me) {
+      log.info(`Telegram: @${me.username}`);
+      if (!me.can_connect_to_business) {
+        log.warn('У бота выключен Secretary Mode — канал A работать не будет.');
+        log.warn('@BotFather → /mybots → бот → Bot Settings → Secretary Mode (раньше назывался Business Mode)');
+      }
+    } else {
+      log.error('Telegram: не удалось получить данные бота после 5 попыток');
     }
 
     // Снимаем вебхук, иначе long polling не заработает
@@ -88,9 +103,31 @@ async function main() {
   const timer = setInterval(() => void syncTick(bot), config.SYNC_INTERVAL_SEC * 1000);
   log.info(`Синхронизация каждые ${config.SYNC_INTERVAL_SEC} с`);
 
+  // Поддержка хостинга на Replit/облаке: HTTP health check сервер
+  let httpServer: Server | null = null;
+  if (process.env.PORT) {
+    const port = Number(process.env.PORT) || 3000;
+    httpServer = createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        status: 'ok',
+        service: 'akm-bot',
+        mode: config.MODE,
+        time: new Date().toISOString(),
+      }));
+    });
+    httpServer.listen(port, '0.0.0.0', () => {
+      log.info(`Health check HTTP сервер запущен на порту ${port}`);
+    });
+  }
+
   const stop = async (signal: string) => {
     log.info(`${signal} — останавливаюсь`);
     clearInterval(timer);
+    if (httpServer) {
+      httpServer.close();
+      httpServer = null;
+    }
     if (bot) await bot.stop();
     // Встроенную базу обязательно закрыть: убитый процесс оставляет
     // каталог в состоянии, из которого она больше не поднимется.

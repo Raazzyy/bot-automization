@@ -149,6 +149,18 @@ const UZ_RU: Record<string, string> = {
   "go'sht": 'мясо', 'go‘sht': 'мясо', gosht: 'мясо', гўшт: 'мясо',
   non: 'хлеб', нон: 'хлеб',
   suv: 'вода', сув: 'вода',
+  tunes: 'тунец', tunets: 'тунец', dardanel: 'dardanel', дарданел: 'dardanel',
+  sirka: 'уксус', сирка: 'уксус',
+  olma: 'яблочный', олма: 'яблочный',
+  uzum: 'виноградный', узум: 'виноградный',
+  anor: 'гранатовый', анор: 'гранатовый',
+  limon: 'лимонный', лимон: 'лимонный',
+  tomat: 'томатная', salca: 'паста', salcasi: 'паста',
+  pomidor: 'помидоры', quritilgan: 'вяленые',
+  sous: 'соус', sousi: 'соус',
+  qalampir: 'халапеньо', jalapeno: 'халапеньо',
+  chili: 'чили', shirin: 'сладкий',
+  sharbat: 'сок',
 };
 
 /** Варианты запроса: как написали + перевод с узбекского */
@@ -194,24 +206,22 @@ async function cenaTovara(args: { product_id?: number }, ctx: ToolContext): Prom
   const [p] = await db.select().from(products).where(eq(products.id, pid)).limit(1);
   if (!p) return { ok: true, data: 'Такого товара нет.' };
 
-  if (ctx.marketId == null) {
-    return { ok: false, data: 'Клиент не опознан — точка неизвестна, цену назвать нельзя. Нужен менеджер.' };
-  }
-
-  const [m] = await db.select().from(markets).where(eq(markets.id, ctx.marketId)).limit(1);
-  if (!m?.priceListId) {
-    return { ok: false, data: 'У точки не задан прайс-лист. Цену назвать нельзя, нужен менеджер.' };
+  let priceListId = 1;
+  if (ctx.marketId != null) {
+    const [m] = await db.select().from(markets).where(eq(markets.id, ctx.marketId)).limit(1);
+    if (m?.priceListId) priceListId = m.priceListId;
   }
 
   const [row] = await db.select().from(prices)
-    .where(and(eq(prices.priceListId, m.priceListId), eq(prices.productId, pid)))
+    .where(and(eq(prices.priceListId, priceListId), eq(prices.productId, pid)))
     .limit(1);
 
   if (!row) {
-    return { ok: false, data: `Цена на «${p.name}» для этой точки не найдена. Нужен менеджер.` };
+    return { ok: false, data: `Цена на «${p.name}» не найдена в прайс-листе. Нужен менеджер.` };
   }
 
-  return { ok: true, data: `${p.name}: ${fmtSum(row.price)}${p.measurementName ? ` за ${p.measurementName}` : ''}` };
+  const note = ctx.marketId == null ? ' (базовая оптовая цена)' : '';
+  return { ok: true, data: `${p.name}: ${fmtSum(row.price)}${p.measurementName ? ` за ${p.measurementName}` : ''}${note}` };
 }
 
 async function ostatok(args: { product_id?: number }): Promise<ToolResult> {

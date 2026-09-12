@@ -1,15 +1,10 @@
-run = "npm start"
+modules = ["nodejs-22"]
+run = "npm run dev"
 entrypoint = "src/dev.ts"
 
 [nix]
 channel = "stable-24_05"
 
 [deployment]
-# Reserved VM: бот работает круглосуточно. Autoscale НЕ подходит —
-# бот с long polling на нём засыпает и теряет сообщения.
-deploymentTarget = "vm"
-run = ["npm", "start"]
-
-[[ports]]
-localPort = 3000
-externalPort = 80
+run = ["npm", "run", "dev"]
+deploymentTarget = "cloudrun"

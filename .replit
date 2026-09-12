@@ -1,11 +1,14 @@
 modules = ["nodejs-22"]
-run = "npm run dev"
+run = "npm start"
 entrypoint = "src/dev.ts"
 
 [nix]
 channel = "stable-24_05"
 
 [deployment]
-build = ["npm", "run", "build"]
+deploymentTarget = "vm"
 run = ["npm", "start"]
-deploymentTarget = "reserved-vm"
+
+[[ports]]
+localPort = 3000
+externalPort = 80

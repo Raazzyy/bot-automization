@@ -9,6 +9,7 @@ import { send, businessChatAllowed } from './send.js';
 import { runAgent } from '../ai/agent.js';
 import { sendAttachments } from './media.js';
 import { canSendToClients, isAssist } from '../config.js';
+import { isBotEnabled, getActiveMode } from '../lib/settings.js';
 import { handleIncoming, handleAssistCallback, relayStaffReply } from './assist.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
 import { downloadTelegramFile, transcribeAudio } from '../ai/media-ai.js';
@@ -160,6 +161,12 @@ export function createBot(): Bot {
       return;
     }
 
+    const botOn = await isBotEnabled();
+    if (!botOn) {
+      log.info(`Канал A ${chatId}: бот выключен через админку — пропускаем сообщение`);
+      return;
+    }
+
     const gate = businessChatAllowed(chatId);
     if (!gate.ok) {
       log.info(`Канал A ${chatId}: пропуск — ${gate.why}`);
@@ -233,8 +240,12 @@ export function createBot(): Bot {
       attachmentMimeType = 'image/jpeg';
     }
 
+    const currentMode = await getActiveMode();
+    const isAssistMode = currentMode === 'assist';
+    const canSendToClientsDynamic = currentMode === 'live';
+
     // Полуавтомат: обработка обращения
-    if (isAssist) {
+    if (isAssistMode) {
       await handleIncoming(ctx.api, {
         chatId, messageId: msg.message_id,
         businessConnectionId: connId,
@@ -251,7 +262,7 @@ export function createBot(): Bot {
     if (!text && kind) {
       log.info(`Канал A ${chatId}: прислали ${kind} — передаю менеджеру`);
 
-      if (canSendToClients) {
+      if (canSendToClientsDynamic) {
         await send(ctx.api, {
           dedupeKey: `ack:${chatId}:${msg.message_id}`,
           kind: 'a_channel_ack',
@@ -319,7 +330,7 @@ export function createBot(): Bot {
     if (turn.error) log.error('Агент не смог ответить', turn.error);
 
     // Клиенту отвечаем только в live. В shadow — черновик менеджерам.
-    if (canSendToClients && turn.reply && !turn.error) {
+    if (canSendToClientsDynamic && turn.reply && !turn.error) {
       const res = await send(ctx.api, {
         dedupeKey: `reply:${chatId}:${msg.message_id}`,
         kind: 'a_channel_reply',
@@ -575,7 +586,18 @@ export function createBot(): Bot {
    */
   bot.on('message', async (ctx, next) => {
     if (ctx.chat.type !== 'private') return next();
-    if (!isAssist) return next();
+
+    const botOn = await isBotEnabled();
+    if (!botOn) {
+      if (!ctx.message.text?.startsWith('/')) {
+        await ctx.reply('Бот временно отключен на техническое обслуживание.');
+      }
+      return;
+    }
+
+    const currentMode = await getActiveMode();
+    const isAssistMode = currentMode === 'assist';
+    if (!isAssistMode) return next();
 
     const msg = ctx.message;
     if (msg.text?.startsWith('/')) return next();

@@ -12,6 +12,8 @@ import { createBot } from './bot/index.js';
 import { postNewOrders, postNewPayments } from './bot/esf.js';
 import { syncAll } from './linko/sync.js';
 import { log } from './lib/logger.js';
+import { startAdminServer } from './server/admin-api.js';
+
 
 
 /** Эти типы апдейтов Telegram не присылает по умолчанию — их надо запросить явно */
@@ -103,30 +105,15 @@ async function main() {
   const timer = setInterval(() => void syncTick(bot), config.SYNC_INTERVAL_SEC * 1000);
   log.info(`Синхронизация каждые ${config.SYNC_INTERVAL_SEC} с`);
 
-  // Поддержка хостинга на Replit/облаке: HTTP health check сервер
-  let httpServer: Server | null = null;
-  if (process.env.PORT) {
-    const port = Number(process.env.PORT) || 3000;
-    httpServer = createServer((_req, res) => {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        status: 'ok',
-        service: 'akm-bot',
-        mode: config.MODE,
-        time: new Date().toISOString(),
-      }));
-    });
-    httpServer.listen(port, '0.0.0.0', () => {
-      log.info(`Health check HTTP сервер запущен на порту ${port}`);
-    });
-  }
+  // Запуск веб-панели управления и API (White-Label CRM, документы, AI симулятор)
+  const port = Number(process.env.PORT) || 3000;
+  const adminServer = startAdminServer(port);
 
   const stop = async (signal: string) => {
     log.info(`${signal} — останавливаюсь`);
     clearInterval(timer);
-    if (httpServer) {
-      httpServer.close();
-      httpServer = null;
+    if (adminServer) {
+      adminServer.close();
     }
     if (bot) await bot.stop();
     // Встроенную базу обязательно закрыть: убитый процесс оставляет

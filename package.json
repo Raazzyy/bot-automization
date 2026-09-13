@@ -18,7 +18,8 @@
     "eval": "tsx src/scripts/eval.ts",
     "models": "tsx src/scripts/models.ts",
     "media": "tsx src/scripts/media.ts",
-    "test:db": "tsx src/scripts/test-db.ts"
+    "test:db": "tsx src/scripts/test-db.ts",
+    "test:admin": "tsx src/scripts/test-admin.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",

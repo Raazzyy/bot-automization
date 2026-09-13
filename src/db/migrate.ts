@@ -238,6 +238,12 @@ const DDL = [
      bucket_60_plus numeric NOT NULL DEFAULT 0
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS debt_snap_uq ON debt_snapshots (date, market_id)`,
+
+  `CREATE TABLE IF NOT EXISTS system_settings (
+     key text PRIMARY KEY,
+     value text NOT NULL,
+     updated_at timestamptz NOT NULL DEFAULT now()
+   )`,
 ];
 
 export async function migrate(): Promise<number> {
@@ -249,7 +255,8 @@ export async function migrate(): Promise<number> {
 }
 
 // Запуск напрямую: tsx src/db/migrate.ts
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
+const scriptPath = process.argv[1]?.replace(/\\/g, '/') ?? '';
+if (scriptPath.endsWith('migrate.ts') || scriptPath.endsWith('migrate.js') || (scriptPath && import.meta.url.endsWith(scriptPath))) {
   migrate()
     .then((n) => {
       log.info(`Схема готова: выполнено ${n} запросов`);

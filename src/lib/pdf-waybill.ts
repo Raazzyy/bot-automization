@@ -8,6 +8,8 @@ import { orders, orderItems, markets, payments } from '../db/schema.js';
 import { fmtSum, fmtDate, fmtNum, fmtAmount, todayTashkent, toSum } from './money.js';
 import { config } from '../config.js';
 import { log } from './logger.js';
+import { getCompanyProfile } from './settings.js';
+
 
 const COMPANY_INFO = {
   name: 'ООО «AKM HOLDINGS INC»',
@@ -49,6 +51,7 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
   const [o] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
   if (!o) throw new Error(`Заказ №${orderId} не найден`);
 
+  const company = await getCompanyProfile();
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
   const market = o.marketId ? (await db.select().from(markets).where(eq(markets.id, o.marketId)).limit(1))[0] : null;
 
@@ -76,7 +79,7 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
 
   // --- РЕКВИЗИТЫ СТОРОН ---
   cursorY -= 22;
-  page.drawText(`Поставщик: ${COMPANY_INFO.name}`, { x: marginX, y: cursorY, size: 9.5, font: boldFont });
+  page.drawText(`Поставщик: ${company.name}`, { x: marginX, y: cursorY, size: 9.5, font: boldFont });
   cursorY -= 14;
   const buyerName = o.marketName || market?.name || 'Покупатель не указан';
   const buyerInn = o.marketInn || market?.inn || '—';
@@ -255,6 +258,7 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
 
   const pdfDoc = await PDFDocument.create();
   const { regularFont, boldFont } = await loadFonts(pdfDoc);
+  const company = await getCompanyProfile();
 
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
@@ -262,9 +266,9 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   let cursorY = height - 40;
 
   // Шапка
-  page.drawText(COMPANY_INFO.name, { x: marginX, y: cursorY, size: 12, font: boldFont, color: rgb(0.08, 0.35, 0.3) });
+  page.drawText(company.name, { x: marginX, y: cursorY, size: 12, font: boldFont, color: rgb(0.08, 0.35, 0.3) });
   cursorY -= 14;
-  page.drawText(`ИНН: ${COMPANY_INFO.inn} · Тел: ${COMPANY_INFO.phone}`, { x: marginX, y: cursorY, size: 8, font: regularFont });
+  page.drawText(`ИНН: ${company.inn} · Тел: ${company.phone}`, { x: marginX, y: cursorY, size: 8, font: regularFont });
 
   cursorY -= 22;
   const title = `АКТ СВЕРКИ ВЗАИМНЫХ РАСЧЕТОВ`;
@@ -272,7 +276,7 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   page.drawText(title, { x: (width - titleW) / 2, y: cursorY, size: 13, font: boldFont });
 
   cursorY -= 16;
-  const sub = `между ${COMPANY_INFO.name} и «${market.name}» по состоянию на ${fmtDate(todayTashkent())}`;
+  const sub = `между ${company.name} и «${market.name}» по состоянию на ${fmtDate(todayTashkent())}`;
   const subW = regularFont.widthOfTextAtSize(sub, 9);
   page.drawText(sub, { x: (width - subW) / 2, y: cursorY, size: 9, font: regularFont });
 
@@ -347,7 +351,7 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
 
   cursorY -= 16;
   const debtStatus = finalDebt > 0
-    ? `Задолженность в пользу ${COMPANY_INFO.name}: ${fmtSum(finalDebt)}`
+    ? `Задолженность в пользу ${company.name}: ${fmtSum(finalDebt)}`
     : (finalDebt < 0 ? `Переплата в пользу Покупателя: ${fmtSum(Math.abs(finalDebt))}` : 'Задолженность отсутствует (сальдо 0 сум).');
 
   page.drawText(debtStatus, {
@@ -361,7 +365,7 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   // Подписи
   cursorY -= 50;
   const colW = (width - marginX * 2 - 40) / 2;
-  page.drawText('От ООО «AKM HOLDINGS INC»:', { x: marginX, y: cursorY, size: 9, font: boldFont });
+  page.drawText(`От ${company.name}:`, { x: marginX, y: cursorY, size: 9, font: boldFont });
   page.drawText('Главный бухгалтер: ___________________', { x: marginX, y: cursorY - 18, size: 8.5, font: regularFont });
   page.drawText('М.П.', { x: marginX + 160, y: cursorY - 40, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
 

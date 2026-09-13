@@ -289,3 +289,11 @@ export const debtSnapshots = pgTable('debt_snapshots', {
   bucket3160: numeric('bucket_31_60').notNull().default('0'),
   bucket60p: numeric('bucket_60_plus').notNull().default('0'),
 }, (t) => ({ uq: uniqueIndex('debt_snap_uq').on(t.date, t.marketId) }));
+
+/** Настройки White-Label, управление поведением и база знаний */
+export const systemSettings = pgTable('system_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+

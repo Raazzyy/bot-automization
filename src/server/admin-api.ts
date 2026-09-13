@@ -119,6 +119,7 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
         company_name: settings.company_name,
         manager_name: settings.manager_name,
         bot_configured: Boolean(settings.telegram_bot_token || config.BOT_TOKEN),
+        polling_disabled: config.DISABLE_BOT_POLLING,
         gemini_configured: Boolean(settings.gemini_api_key || config.GEMINI_API_KEY),
         business_account: conn ? {
           connected: conn.isEnabled,

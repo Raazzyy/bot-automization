@@ -62,6 +62,12 @@ const schema = z.object({
   SYNC_INTERVAL_SEC: z.coerce.number().int().min(30).default(120),
   TZ_OFFSET_HOURS: z.coerce.number().default(5), // Ташкент UTC+5
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+
+  // Отключение Telegram Polling (для тестирования локалки без конфликта с Replit)
+  DISABLE_BOT_POLLING: z
+    .string()
+    .default('false')
+    .transform((v) => v.toLowerCase() === 'true' || v === '1' || v.toLowerCase() === 'yes'),
 });
 
 const parsed = schema.safeParse(process.env);

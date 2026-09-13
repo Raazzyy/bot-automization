@@ -66,7 +66,7 @@ async function main() {
 
   let bot: ReturnType<typeof createBot> | null = null;
 
-  if (config.BOT_TOKEN) {
+  if (config.BOT_TOKEN && !config.DISABLE_BOT_POLLING) {
     bot = createBot();
     let me: { username?: string; can_connect_to_business?: boolean } | null = null;
     for (let attempt = 1; attempt <= 5; attempt++) {
@@ -96,6 +96,9 @@ async function main() {
       allowed_updates: [...ALLOWED_UPDATES],
       onStart: () => log.info('Бот слушает обновления'),
     });
+  } else if (config.DISABLE_BOT_POLLING) {
+    log.warn('⏸️ Telegram Polling ОТКЛЮЧЕН переменной DISABLE_BOT_POLLING=true');
+    log.info('Веб-панель управления, Linko и API работают в штатном режиме (удобно для тестов локалки без конфликта с Replit)');
   } else {
     log.warn('BOT_TOKEN не задан — работает только синхронизация с Linko');
   }

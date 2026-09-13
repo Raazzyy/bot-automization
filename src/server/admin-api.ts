@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname, resolve } from 'node:path';
-import { desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, sql, and, or } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';
 import { orders, orderItems, markets, businessConnections } from '../db/schema.js';
@@ -12,7 +12,7 @@ import { generateWaybillPdf, generateReconciliationPdf } from '../lib/pdf-waybil
 import { runAgent } from '../ai/agent.js';
 import { syncAll } from '../linko/sync.js';
 import { log } from '../lib/logger.js';
-import { fmtSum, toSum } from '../lib/money.js';
+import { fmtSum, fmtNum, fmtAmount, fmtDate, toSum } from '../lib/money.js';
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -264,11 +264,16 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       return sendJson(res, 200, { ok: true, results });
     }
 
-    /* ─────────── 5. API: Заказы и PDF-накладные ─────────── */
+    /* ─────────── 5. API: Заказы, Детали и PDF-накладные ─────────── */
 
     if (pathname === '/api/orders' && req.method === 'GET') {
+      const q = parsedUrl.searchParams.get('q')?.trim() || '';
+      const statusFilter = parsedUrl.searchParams.get('status')?.trim() || '';
+      const limit = Math.min(100, Math.max(1, Number(parsedUrl.searchParams.get('limit')) || 50));
+      const offset = Math.max(0, Number(parsedUrl.searchParams.get('offset')) || 0);
+
       const db = await getDb();
-      const list = await db
+      let query = db
         .select({
           id: orders.id,
           marketId: orders.marketId,
@@ -280,9 +285,33 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
           paymentType: orders.paymentType,
           createdByBot: orders.createdByBot,
         })
-        .from(orders)
+        .from(orders);
+
+      const conditions = [];
+      if (statusFilter && statusFilter !== 'all') {
+        conditions.push(eq(orders.status, statusFilter));
+      }
+      if (q) {
+        const numQ = Number(q);
+        if (!isNaN(numQ) && q.length > 0) {
+          conditions.push(or(
+            sql`lower(${orders.marketName}) LIKE ${'%' + q.toLowerCase() + '%'}`,
+            eq(orders.id, numQ),
+            eq(orders.id, -numQ)
+          ));
+        } else {
+          conditions.push(sql`lower(${orders.marketName}) LIKE ${'%' + q.toLowerCase() + '%'}`);
+        }
+      }
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions)) as any;
+      }
+
+      const list = await query
         .orderBy(desc(orders.id))
-        .limit(50);
+        .limit(limit)
+        .offset(offset);
 
       return sendJson(res, 200, list.map((o) => ({
         ...o,
@@ -291,6 +320,54 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
         total_price_num: toSum(o.totalPrice),
         total_price_fmt: fmtSum(toSum(o.totalPrice)),
       })));
+    }
+
+    const orderItemsMatch = pathname.match(/^\/api\/orders\/(-?\d+)\/items$/);
+    if (orderItemsMatch && req.method === 'GET') {
+      const orderId = Number(orderItemsMatch[1]);
+      const db = await getDb();
+      const [o] = await db
+        .select()
+        .from(orders)
+        .where(or(eq(orders.id, orderId), eq(orders.id, -orderId)))
+        .limit(1);
+
+      if (!o) {
+        return sendJson(res, 404, { ok: false, error: `Заказ #${orderId} не найден` });
+      }
+
+      const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id));
+      const market = o.marketId ? (await db.select().from(markets).where(eq(markets.id, o.marketId)).limit(1))[0] : null;
+
+      return sendJson(res, 200, {
+        order: {
+          id: Math.abs(o.id),
+          real_id: o.id,
+          market_name: o.marketName || market?.name || 'Не указан',
+          market_inn: o.marketInn || market?.inn || '—',
+          market_phone: (market?.phones as string[])?.[0] || '—',
+          market_address: market?.address || 'г. Ташкент',
+          created_date: o.createdDate,
+          date_delivery: o.dateDelivery,
+          payment_type: o.paymentType === 'bank' ? 'Перечисление' : 'Наличные',
+          status: o.status || 'new',
+          total_price: toSum(o.totalPrice),
+          total_price_fmt: fmtSum(toSum(o.totalPrice)),
+          created_by_bot: o.createdByBot,
+        },
+        items: items.map((it) => ({
+          id: it.id,
+          product_id: it.productId,
+          product_name: it.productName || `Товар #${it.productId}`,
+          amount: it.amount,
+          amount_fmt: fmtAmount(it.amount),
+          price: toSum(it.price),
+          price_fmt: fmtNum(it.price),
+          total_price: toSum(it.totalPrice),
+          total_price_fmt: fmtNum(it.totalPrice),
+          measurement_name: it.measurementName || 'шт',
+        })),
+      });
     }
 
     const orderPdfMatch = pathname.match(/^\/api\/orders\/(-?\d+)\/pdf$/);
@@ -387,7 +464,36 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       return sendJson(res, 200, { ok: true, results });
     }
 
-    /* ─────────── 10. Статика SPA Панели ─────────── */
+    /* ─────────── 10. API: Список торговых точек (Маркетов) ─────────── */
+
+    if (pathname === '/api/markets' && req.method === 'GET') {
+      const q = parsedUrl.searchParams.get('q')?.toLowerCase() || '';
+      const limit = Math.min(200, Math.max(1, Number(parsedUrl.searchParams.get('limit')) || 100));
+      const db = await getDb();
+      const allMarkets = await db
+        .select({
+          id: markets.id,
+          name: markets.name,
+          inn: markets.inn,
+          address: markets.address,
+          phones: markets.phones,
+        })
+        .from(markets)
+        .orderBy(markets.name);
+
+      const filtered = q
+        ? allMarkets.filter(
+            (m) =>
+              (m.name && m.name.toLowerCase().includes(q)) ||
+              (m.inn && m.inn.includes(q)) ||
+              (m.address && m.address.toLowerCase().includes(q))
+          )
+        : allMarkets;
+
+      return sendJson(res, 200, filtered.slice(0, limit));
+    }
+
+    /* ─────────── 11. Статика SPA Панели ─────────── */
 
     const publicDir = resolve(process.cwd(), 'public', 'admin');
 

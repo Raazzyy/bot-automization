@@ -7,11 +7,20 @@ const app = {
   settings: {},
   chatHistory: [],
 
+  // Кэш данных для мгновенной фильтрации
+  allDebts: [],
+  filteredDebts: [],
+  allSleepers: [],
+  filteredSleepers: [],
+  filterOverdueOnly: false,
+  marketsList: [],
+
   init() {
     this.initNavigation();
     this.bindEvents();
     this.startClock();
     this.loadAllData();
+    this.loadMarketsForSimulator();
   },
 
   // ─────────── 1. Навигация по вкладкам ───────────
@@ -49,8 +58,8 @@ const app = {
       'tab-overview': ['Дашборд & KPI', 'Мониторинг автоматизации и заказов'],
       'tab-behavior': ['Поведение & База знаний', 'Обучение нейросети и регламенты компании'],
       'tab-whitelabel': ['White-Label & Реквизиты', 'Настройка решения под ключ и перепродажа'],
-      'tab-orders': ['Журнал заказов', 'Лента отгрузок и печать PDF-накладных'],
-      'tab-debts': ['Дебиторская задолженность', 'Старение долга и Акты сверки'],
+      'tab-orders': ['Журнал заказов', 'Лента отгрузок, просмотр позиций и печать PDF'],
+      'tab-debts': ['Дебиторская задолженность', 'Старение долга, поиск должников и Акты сверки'],
       'tab-sleepers': ['Спящие клиенты', 'Анализ цикла повторных закупок и офферы'],
       'tab-simulator': ['Live AI Симулятор', 'Тестирование ответов нейросети в песочнице'],
     };
@@ -95,6 +104,44 @@ const app = {
     // Синхронизация профиля Telegram
     document.getElementById('btnPushTelegramProfile').addEventListener('click', () => {
       this.pushTelegramProfile();
+    });
+
+    // Поиск и фильтрация заказов
+    let orderSearchTimeout = null;
+    document.getElementById('orderSearchInput')?.addEventListener('input', () => {
+      clearTimeout(orderSearchTimeout);
+      orderSearchTimeout = setTimeout(() => this.loadOrders(), 300);
+    });
+    document.getElementById('orderStatusFilter')?.addEventListener('change', () => {
+      this.loadOrders();
+    });
+
+    // Поиск и фильтрация дебиторки
+    document.getElementById('debtSearchInput')?.addEventListener('input', (e) => {
+      this.filterDebts();
+    });
+    document.getElementById('btnFilterOverdueOnly')?.addEventListener('click', (e) => {
+      this.filterOverdueOnly = !this.filterOverdueOnly;
+      e.target.classList.toggle('active', this.filterOverdueOnly);
+      this.filterDebts();
+    });
+
+    // Поиск и фильтрация спящих клиентов
+    document.getElementById('sleeperSearchInput')?.addEventListener('input', () => {
+      this.filterSleepers();
+    });
+    document.getElementById('sleeperOverdueFilter')?.addEventListener('change', () => {
+      this.filterSleepers();
+    });
+
+    // Модальное окно заказа
+    document.getElementById('btnCloseOrderModal')?.addEventListener('click', () => this.closeOrderModal());
+    document.getElementById('btnModalClose')?.addEventListener('click', () => this.closeOrderModal());
+    document.getElementById('orderModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'orderModal') this.closeOrderModal();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.closeOrderModal();
     });
 
     // Чат симулятор
@@ -227,18 +274,23 @@ const app = {
       const tbody = document.getElementById('recentOrdersTbody');
       if (data.recent_orders?.length) {
         tbody.innerHTML = data.recent_orders.map((o) => `
-          <tr>
+          <tr class="clickable-row" onclick="app.openOrderModal(${o.id})">
             <td><strong>#${o.id}</strong></td>
-            <td>${this.escapeHtml(o.market_name)}</td>
+            <td><strong>${this.escapeHtml(o.market_name)}</strong></td>
             <td>${o.created_date || '—'}</td>
             <td>${this.formatMoney(o.total_price)}</td>
             <td><span class="status-tag status-${this.getStatusClass(o.status)}">${o.status}</span></td>
             <td>${o.created_by_bot ? '<span class="badge-sub">Telegram Bot</span>' : 'Linko SFA'}</td>
             <td>
-              <a href="/api/orders/${o.id}/pdf" target="_blank" class="btn-sm-pdf">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                PDF
-              </a>
+              <div style="display:flex; gap:6px;">
+                <button class="btn-sm-pdf" onclick="event.stopPropagation(); app.openOrderModal(${o.id})">
+                  Состав
+                </button>
+                <a href="/api/orders/${o.id}/pdf" target="_blank" class="btn-sm-pdf" onclick="event.stopPropagation()">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                  PDF
+                </a>
+              </div>
             </td>
           </tr>
         `).join('');
@@ -386,18 +438,30 @@ const app = {
 
   async loadOrders() {
     const tbody = document.getElementById('ordersFullTbody');
+    const q = document.getElementById('orderSearchInput')?.value?.trim() || '';
+    const status = document.getElementById('orderStatusFilter')?.value || 'all';
+
     try {
       tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-muted">Загрузка заказов...</td></tr>`;
-      const res = await fetch('/api/orders');
+
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (status && status !== 'all') params.set('status', status);
+      params.set('limit', '50');
+
+      const res = await fetch(`/api/orders?${params.toString()}`);
       const list = await res.json();
 
+      const badge = document.getElementById('orderCountBadge');
+      if (badge) badge.textContent = `Заказов: ${list.length}`;
+
       if (!list.length) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-muted">Заказы не найдены</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-muted">Заказы по запросу «${this.escapeHtml(q)}» не найдены</td></tr>`;
         return;
       }
 
       tbody.innerHTML = list.map((o) => `
-        <tr>
+        <tr class="clickable-row" onclick="app.openOrderModal(${o.real_id})">
           <td><strong>#${o.id}</strong></td>
           <td><strong>${this.escapeHtml(o.marketName || 'Не указано')}</strong></td>
           <td>${o.createdDate || '—'}</td>
@@ -407,10 +471,15 @@ const app = {
           <td><span class="status-tag status-${this.getStatusClass(o.status)}">${o.status || 'new'}</span></td>
           <td>${o.createdByBot ? '<span class="badge-sub">Telegram Bot</span>' : 'Linko SFA'}</td>
           <td>
-            <a href="/api/orders/${o.real_id}/pdf" target="_blank" class="btn-sm-pdf">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-              Скачать PDF
-            </a>
+            <div style="display:flex; gap:6px;">
+              <button class="btn-sm-pdf" onclick="event.stopPropagation(); app.openOrderModal(${o.real_id})">
+                Состав
+              </button>
+              <a href="/api/orders/${o.real_id}/pdf" target="_blank" class="btn-sm-pdf" onclick="event.stopPropagation()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                PDF
+              </a>
+            </div>
           </td>
         </tr>
       `).join('');
@@ -419,7 +488,88 @@ const app = {
     }
   },
 
-  // ─────────── 6. Дебиторка ───────────
+  // ─────────── 6. Детали заказа (Модалка) ───────────
+
+  async openOrderModal(orderId) {
+    const modal = document.getElementById('orderModal');
+    const titleEl = document.getElementById('modalOrderTitle');
+    const subEl = document.getElementById('modalOrderSub');
+    const metaEl = document.getElementById('modalOrderMeta');
+    const tbody = document.getElementById('modalOrderItemsTbody');
+    const totalEl = document.getElementById('modalOrderTotal');
+    const pdfBtn = document.getElementById('btnModalDownloadPdf');
+
+    titleEl.textContent = `Заказ #${Math.abs(orderId)}`;
+    subEl.textContent = 'Загрузка данных...';
+    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-muted">Загрузка состава заказа...</td></tr>`;
+    metaEl.innerHTML = '';
+    pdfBtn.href = `/api/orders/${orderId}/pdf`;
+
+    modal.classList.remove('hidden');
+
+    try {
+      const res = await fetch(`/api/orders/${orderId}/items`);
+      const data = await res.json();
+
+      if (!data.order) {
+        throw new Error(data.error || 'Не удалось получить данные заказа');
+      }
+
+      const ord = data.order;
+      subEl.textContent = ord.market_name;
+      totalEl.textContent = ord.total_price_fmt;
+
+      metaEl.innerHTML = `
+        <div class="meta-item">
+          <span class="meta-label">Заведение / Точка</span>
+          <span class="meta-val">${this.escapeHtml(ord.market_name)}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">ИНН клиента</span>
+          <span class="meta-val">${ord.market_inn || '—'}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Телефон</span>
+          <span class="meta-val">${ord.market_phone || '—'}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Дата заказа / Доставка</span>
+          <span class="meta-val">${ord.created_date || '—'} → ${ord.date_delivery || '—'}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Оплата</span>
+          <span class="meta-val">${ord.payment_type}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Статус</span>
+          <span class="meta-val"><span class="status-tag status-${this.getStatusClass(ord.status)}">${ord.status}</span></span>
+        </div>
+      `;
+
+      if (data.items?.length) {
+        tbody.innerHTML = data.items.map((it, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td><strong>${this.escapeHtml(it.product_name)}</strong></td>
+            <td>${it.measurement_name}</td>
+            <td>${it.amount_fmt}</td>
+            <td>${it.price_fmt} сум</td>
+            <td><strong>${it.total_price_fmt} сум</strong></td>
+          </tr>
+        `).join('');
+      } else {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-muted">Позиции отсутствуют или заказ пуст</td></tr>`;
+      }
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-danger">Ошибка: ${e.message}</td></tr>`;
+    }
+  },
+
+  closeOrderModal() {
+    document.getElementById('orderModal')?.classList.add('hidden');
+  },
+
+  // ─────────── 7. Дебиторка ───────────
 
   async loadDebts() {
     const tbody = document.getElementById('debtsTbody');
@@ -428,90 +578,182 @@ const app = {
       const res = await fetch('/api/debts');
       const data = await res.json();
 
-      if (!data.debtors?.length) {
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-muted">Долгов нет (все расчеты закрыты)</td></tr>`;
-        return;
-      }
-
-      tbody.innerHTML = data.debtors.map((d) => `
-        <tr>
-          <td><strong>${this.escapeHtml(d.marketName)}</strong></td>
-          <td>${d.marketInn || '—'}</td>
-          <td>${d.phone || '—'}</td>
-          <td><strong style="color:#fff;">${this.formatMoney(d.debtTotal)}</strong></td>
-          <td><strong style="color:var(--accent-rose);">${this.formatMoney(d.overdue)}</strong></td>
-          <td>${this.formatMoney(d.bucket0007)}</td>
-          <td>${this.formatMoney(d.bucket0830)}</td>
-          <td>${this.formatMoney(d.bucket3160)}</td>
-          <td>${this.formatMoney(d.bucket60p)}</td>
-          <td>
-            <a href="/api/debts/${d.marketId}/pdf" target="_blank" class="btn-sm-pdf">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-              Акт сверки
-            </a>
-          </td>
-        </tr>
-      `).join('');
+      this.allDebts = data.debtors || [];
+      this.filterDebts();
     } catch (e) {
       tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-danger">Ошибка: ${e.message}</td></tr>`;
     }
   },
 
-  // ─────────── 7. Спящие клиенты ───────────
+  filterDebts() {
+    const q = document.getElementById('debtSearchInput')?.value?.toLowerCase().trim() || '';
+    const overdueOnly = this.filterOverdueOnly;
+
+    this.filteredDebts = this.allDebts.filter((d) => {
+      const matchQ = !q ||
+        (d.marketName && d.marketName.toLowerCase().includes(q)) ||
+        (d.marketInn && d.marketInn.includes(q)) ||
+        (d.phone && d.phone.includes(q));
+
+      const matchOverdue = !overdueOnly || d.overdue > 0;
+      return matchQ && matchOverdue;
+    });
+
+    const badge = document.getElementById('debtCountBadge');
+    if (badge) badge.textContent = `Должников: ${this.filteredDebts.length} из ${this.allDebts.length}`;
+
+    const tbody = document.getElementById('debtsTbody');
+    if (!this.filteredDebts.length) {
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-muted">Должники не найдены</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = this.filteredDebts.map((d) => `
+      <tr>
+        <td><strong>${this.escapeHtml(d.marketName)}</strong></td>
+        <td>${d.marketInn || '—'}</td>
+        <td>${d.phone || '—'}</td>
+        <td><strong style="color:#fff;">${this.formatMoney(d.debtTotal)}</strong></td>
+        <td><strong style="color:var(--accent-rose);">${this.formatMoney(d.overdue)}</strong></td>
+        <td>${this.formatMoney(d.bucket0007)}</td>
+        <td>${this.formatMoney(d.bucket0830)}</td>
+        <td>${this.formatMoney(d.bucket3160)}</td>
+        <td>${this.formatMoney(d.bucket60p)}</td>
+        <td>
+          <a href="/api/debts/${d.marketId}/pdf" target="_blank" class="btn-sm-pdf">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            Акт сверки
+          </a>
+        </td>
+      </tr>
+    `).join('');
+  },
+
+  // ─────────── 8. Спящие клиенты ───────────
 
   async loadSleepers() {
     const container = document.getElementById('sleepersContainer');
     try {
       container.innerHTML = `<div class="text-center py-8 text-muted w-100">Анализ истории заказов клиентов...</div>`;
       const res = await fetch('/api/sleepers');
-      const list = await res.json();
-
-      if (!list.length) {
-        container.innerHTML = `<div class="text-center py-8 text-muted w-100">Все клиенты заказывают строго по своему циклу. Спящих нет!</div>`;
-        return;
-      }
-
-      container.innerHTML = list.map((s) => `
-        <div class="sleeper-card">
-          <div class="sleeper-card-header">
-            <div>
-              <h4 class="sleeper-name">${this.escapeHtml(s.marketName)}</h4>
-              <span class="text-muted text-sm">${s.phone || 'Телефон не указан'}</span>
-            </div>
-            <span class="sleeper-badge">Просрочка ${s.daysOverdueCycle} дн.</span>
-          </div>
-
-          <div class="sleeper-metrics">
-            <div class="sleeper-metrics-col">
-              <span>Заказов всего:</span>
-              <strong>${s.ordersCount}</strong>
-            </div>
-            <div class="sleeper-metrics-col">
-              <span>Привычный цикл:</span>
-              <strong>${s.medianIntervalDays} дн.</strong>
-            </div>
-            <div class="sleeper-metrics-col">
-              <span>Последний заказ:</span>
-              <strong>${s.lastOrderDate}</strong>
-            </div>
-          </div>
-
-          <div class="offer-box">
-            <div class="text-muted text-sm mb-1">Готовое предложение (RU):</div>
-            <div>${this.escapeHtml(s.draftMessageRu)}</div>
-          </div>
-
-          <button class="btn-secondary" onclick="navigator.clipboard.writeText('${this.escapeHtml(s.draftMessageRu)}'); app.showToast('Текст скопирован в буфер!', 'success');">
-            Копировать предложение
-          </button>
-        </div>
-      `).join('');
+      this.allSleepers = await res.json();
+      this.filterSleepers();
     } catch (e) {
       container.innerHTML = `<div class="text-center py-8 text-danger w-100">Ошибка: ${e.message}</div>`;
     }
   },
 
-  // ─────────── 8. AI Симулятор ───────────
+  filterSleepers() {
+    const q = document.getElementById('sleeperSearchInput')?.value?.toLowerCase().trim() || '';
+    const minOverdue = Number(document.getElementById('sleeperOverdueFilter')?.value) || 0;
+
+    this.filteredSleepers = this.allSleepers.filter((s) => {
+      const matchQ = !q ||
+        (s.marketName && s.marketName.toLowerCase().includes(q)) ||
+        (s.phone && s.phone.includes(q));
+
+      const matchDays = s.daysOverdueCycle >= minOverdue;
+      return matchQ && matchDays;
+    });
+
+    const badge = document.getElementById('sleeperCountBadge');
+    if (badge) badge.textContent = `Спящих точек: ${this.filteredSleepers.length} из ${this.allSleepers.length}`;
+
+    const container = document.getElementById('sleepersContainer');
+    if (!this.filteredSleepers.length) {
+      container.innerHTML = `<div class="text-center py-8 text-muted w-100">Клиентов по заданным критериям не найдено</div>`;
+      return;
+    }
+
+    container.innerHTML = this.filteredSleepers.map((s) => `
+      <div class="sleeper-card">
+        <div class="sleeper-card-header">
+          <div>
+            <h4 class="sleeper-name">${this.escapeHtml(s.marketName)}</h4>
+            <span class="text-muted text-sm">${s.phone || 'Телефон не указан'}</span>
+          </div>
+          <span class="sleeper-badge">Просрочка ${s.daysOverdueCycle} дн.</span>
+        </div>
+
+        <div class="sleeper-metrics">
+          <div class="sleeper-metrics-col">
+            <span>Заказов всего:</span>
+            <strong>${s.ordersCount}</strong>
+          </div>
+          <div class="sleeper-metrics-col">
+            <span>Привычный цикл:</span>
+            <strong>${s.medianIntervalDays} дн.</strong>
+          </div>
+          <div class="sleeper-metrics-col">
+            <span>Последний заказ:</span>
+            <strong>${s.lastOrderDate}</strong>
+          </div>
+        </div>
+
+        <div class="offer-box">
+          <div class="text-muted text-sm mb-1">Готовое предложение (RU):</div>
+          <div>${this.escapeHtml(s.draftMessageRu)}</div>
+        </div>
+
+        <button class="btn-secondary" onclick="app.copyOffer('${encodeURIComponent(s.draftMessageRu)}')">
+          Копировать предложение
+        </button>
+      </div>
+    `).join('');
+  },
+
+  copyOffer(encodedText) {
+    const text = decodeURIComponent(encodedText);
+    this.copyToClipboard(text);
+    this.showToast('Текст предложения скопирован!', 'success');
+  },
+
+  copyToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).catch(() => this.fallbackCopyText(text));
+    } else {
+      this.fallbackCopyText(text);
+    }
+  },
+
+  fallbackCopyText(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      document.execCommand('copy');
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+    }
+    document.body.removeChild(textArea);
+  },
+
+  // ─────────── 9. Точки для AI Симулятора ───────────
+
+  async loadMarketsForSimulator() {
+    const select = document.getElementById('simMarketSelect');
+    if (!select) return;
+
+    try {
+      const res = await fetch('/api/markets?limit=100');
+      const list = await res.json();
+      this.marketsList = list;
+
+      let html = '<option value="">Клиент без точки (Гость)</option>';
+      for (const m of list) {
+        html += `<option value="${m.id}">${this.escapeHtml(m.name)} (ID ${Math.abs(m.id)}${m.inn ? ', ИНН ' + m.inn : ''})</option>`;
+      }
+      select.innerHTML = html;
+    } catch (e) {
+      console.error('Ошибка загрузки точек для симулятора:', e);
+    }
+  },
+
+  // ─────────── 10. AI Симулятор ───────────
 
   async sendChatMessage() {
     const input = document.getElementById('chatInput');
@@ -521,7 +763,7 @@ const app = {
     input.value = '';
     const messagesEl = document.getElementById('chatMessages');
 
-    // Добавляем реплику пользователя
+    // Реплика пользователя
     messagesEl.innerHTML += `<div class="chat-bubble user">${this.escapeHtml(msg)}</div>`;
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
@@ -623,7 +865,7 @@ const app = {
     `;
   },
 
-  // ─────────── 9. Утилиты ───────────
+  // ─────────── 11. Утилиты ───────────
 
   formatMoney(num) {
     if (num == null) return '0 сум';

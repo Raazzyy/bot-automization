@@ -392,9 +392,21 @@
             <div class="card-header flex-between">
               <div>
                 <h3>Журнал заказов и накладные</h3>
-                <span class="card-sub">Все отгрузки, статусы и скачивание официальных PDF-документов</span>
+                <span class="card-sub">Все отгрузки, статусы, быстрый просмотр состава и печать PDF</span>
               </div>
               <button class="btn-secondary" onclick="app.loadOrders()">Обновить список</button>
+            </div>
+
+            <!-- Фильтры и поиск заказов -->
+            <div class="filter-bar">
+              <input type="text" id="orderSearchInput" class="filter-input" placeholder="🔍 Поиск по названию заведения или номеру заказа...">
+              <select id="orderStatusFilter" class="filter-select">
+                <option value="all">Все статусы</option>
+                <option value="delivered">Доставлен (Delivered)</option>
+                <option value="new">Новый / В обработке (New)</option>
+                <option value="cancel">Отменен (Cancel)</option>
+              </select>
+              <span id="orderCountBadge" class="badge-sub">Заказов: 0</span>
             </div>
 
             <div class="table-responsive mt-4">
@@ -409,7 +421,7 @@
                     <th>Сумма заказа</th>
                     <th>Статус</th>
                     <th>Источник</th>
-                    <th>Экспорт</th>
+                    <th>Действия</th>
                   </tr>
                 </thead>
                 <tbody id="ordersFullTbody">
@@ -429,6 +441,13 @@
                 <span class="card-sub">Баланс контрагентов по методу FIFO со старением долга</span>
               </div>
               <button class="btn-secondary" onclick="app.loadDebts()">Обновить дебиторку</button>
+            </div>
+
+            <!-- Фильтры и поиск дебиторки -->
+            <div class="filter-bar">
+              <input type="text" id="debtSearchInput" class="filter-input" placeholder="🔍 Поиск должника по названию или ИНН...">
+              <button id="btnFilterOverdueOnly" class="filter-chip">Только с просрочкой</button>
+              <span id="debtCountBadge" class="badge-sub">Должников: 0</span>
             </div>
 
             <div class="table-responsive mt-4">
@@ -464,6 +483,18 @@
                 <span class="card-sub">Автоматический расчёт индивидуального цикла повторных закупок и готовые персонализированные офферы</span>
               </div>
               <button class="btn-secondary" onclick="app.loadSleepers()">Анализировать базу</button>
+            </div>
+
+            <!-- Фильтры спящих клиентов -->
+            <div class="filter-bar">
+              <input type="text" id="sleeperSearchInput" class="filter-input" placeholder="🔍 Поиск спящего клиента...">
+              <select id="sleeperOverdueFilter" class="filter-select">
+                <option value="0">Любая просрочка</option>
+                <option value="7">Просрочка > 7 дней</option>
+                <option value="14">Просрочка > 14 дней</option>
+                <option value="30">Просрочка > 30 дней</option>
+              </select>
+              <span id="sleeperCountBadge" class="badge-sub">Спящих точек: 0</span>
             </div>
 
             <div id="sleepersContainer" class="sleepers-grid mt-4">
@@ -528,6 +559,55 @@
 
       </div>
     </main>
+  </div>
+
+  <!-- Модальное окно: Состав и детали заказа -->
+  <div id="orderModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="modalOrderTitle">Заказ #...</h3>
+          <span id="modalOrderSub" class="text-muted text-sm">Заведение</span>
+        </div>
+        <button id="btnCloseOrderModal" class="btn-icon" title="Закрыть">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="order-meta-grid" id="modalOrderMeta">
+          <!-- Заполняется динамически -->
+        </div>
+
+        <h4 class="mt-4 mb-2">Содержимое заказа (Товары)</h4>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Наименование товара</th>
+                <th>Ед.</th>
+                <th>Кол-во</th>
+                <th>Цена (сум)</th>
+                <th>Сумма (сум)</th>
+              </tr>
+            </thead>
+            <tbody id="modalOrderItemsTbody">
+              <tr><td colspan="6" class="text-center py-6 text-muted">Загрузка позиций...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-total-bar mt-4">
+          <span>Итоговая сумма заказа:</span>
+          <strong id="modalOrderTotal">0 сум</strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnModalClose" class="btn-secondary">Закрыть</button>
+        <a id="btnModalDownloadPdf" href="#" target="_blank" class="btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          Печать накладной PDF
+        </a>
+      </div>
+    </div>
   </div>
 
   <!-- Всплывающие уведомления (Toasts) -->

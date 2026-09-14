@@ -106,6 +106,11 @@ const app = {
       this.pushTelegramProfile();
     });
 
+    // Тест связи с Linko
+    document.getElementById('btnTestLinkoPing')?.addEventListener('click', () => {
+      this.testLinkoConnection();
+    });
+
     // Поиск и фильтрация заказов
     let orderSearchTimeout = null;
     document.getElementById('orderSearchInput')?.addEventListener('input', () => {
@@ -443,6 +448,32 @@ const app = {
     } finally {
       btn.disabled = false;
       btn.style.opacity = '1';
+    }
+  },
+
+  async testLinkoConnection() {
+    const btn = document.getElementById('btnTestLinkoPing');
+    if (!btn) return;
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+    btn.innerHTML = `Проверяю связь...`;
+    const start = Date.now();
+    try {
+      const res = await fetch('/api/linko/ping');
+      const data = await res.json();
+      const ms = Date.now() - start;
+      if (data.ok) {
+        this.showToast(`✅ Linko External API активен! Сервер: ${data.base_url || 'akm.linko.uz'} (${ms} мс)`, 'success');
+      } else {
+        this.showToast(`⚠️ Ошибка подключения к Linko: ${data.error || 'неизвестная ошибка'}`, 'error');
+      }
+    } catch (e) {
+      this.showToast(`❌ Ошибка запроса к Linko: ${e.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      btn.innerHTML = origHtml;
     }
   },
 

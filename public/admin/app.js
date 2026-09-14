@@ -195,6 +195,18 @@ const app = {
       if (data.manager_name) {
         document.getElementById('simManagerName').textContent = `${data.manager_name} (AI Менеджер)`;
       }
+
+      if (data.linko) {
+        const badgeText = document.getElementById('linkoBadgeText');
+        if (badgeText) {
+          if (data.linko.live_token_active || !data.linko.read_only_mode) {
+            badgeText.textContent = 'Linko API: Боевой (Live)';
+            badgeText.parentElement.title = `Подключено: ${data.linko.base_url}`;
+          } else {
+            badgeText.textContent = 'Linko Read-Only Safe';
+          }
+        }
+      }
     } catch (e) {
       console.error('Ошибка загрузки статуса:', e);
     }

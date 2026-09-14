@@ -59,9 +59,9 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="linko-badge">
+        <div class="linko-badge" id="linkoStatusBadge" title="Боевое подключение к Linko External API активно">
           <div class="dot-green"></div>
-          <span>Linko Read-Only Safe</span>
+          <span id="linkoBadgeText">Linko API: Боевой (Live)</span>
         </div>
         <div class="system-time" id="serverClock">--:--:--</div>
       </div>
@@ -342,7 +342,7 @@
                 </div>
                 <div class="form-group">
                   <label>Linko Base URL</label>
-                  <input type="text" id="cfgLinkoUrl" class="form-input" placeholder="https://sfademo.linko.uz">
+                  <input type="text" id="cfgLinkoUrl" class="form-input" placeholder="https://akm.linko.uz">
                 </div>
               </div>
 

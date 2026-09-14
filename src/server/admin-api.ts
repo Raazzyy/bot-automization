@@ -11,6 +11,7 @@ import { findDormantMarkets } from '../bot/reactivate.js';
 import { generateWaybillPdf, generateReconciliationPdf } from '../lib/pdf-waybill.js';
 import { runAgent } from '../ai/agent.js';
 import { syncAll } from '../linko/sync.js';
+import { linko } from '../linko/client.js';
 import { log } from '../lib/logger.js';
 import { fmtSum, fmtNum, fmtAmount, fmtDate, toSum } from '../lib/money.js';
 
@@ -128,9 +129,23 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
         } : null,
         linko: {
           base_url: settings.linko_base_url,
-          read_only_mode: true,
+          live_token_active: true,
+          read_only_mode: false,
+          live_mode: true,
         },
         time: new Date().toISOString(),
+      });
+    }
+
+    if (pathname === '/api/linko/ping' && req.method === 'GET') {
+      const [ping, settings] = await Promise.all([
+        linko.ping(),
+        getAllSettings(),
+      ]);
+      return sendJson(res, 200, {
+        ...ping,
+        base_url: settings.linko_base_url,
+        live_active: ping.ok,
       });
     }
 

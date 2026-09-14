@@ -20,7 +20,7 @@ const idList = z.string().default('').transform((s) =>
 
 const schema = z.object({
   // --- Linko ---
-  LINKO_BASE_URL: z.string().url().default('https://sfademo.linko.uz'),
+  LINKO_BASE_URL: z.string().url().default('https://akm.linko.uz'),
   LINKO_TOKEN: z.string().min(10, 'LINKO_TOKEN не задан'),
 
   // --- Telegram ---

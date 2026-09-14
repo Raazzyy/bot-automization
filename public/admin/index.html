@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B2B AI Bot Platform — Панель управления & CRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/style.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Сайдбар навигации -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <h2 id="sideBrandName">AKM Distribution</h2>
+          <span class="badge-sub">White-Label CRM</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="tab-overview">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"></rect><rect x="14" y="3" width="7" height="5"></rect><rect x="14" y="12" width="7" height="9"></rect><rect x="3" y="16" width="7" height="5"></rect></svg>
+          Дашборд & KPI
+        </button>
+        <button class="nav-item" data-tab="tab-behavior">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 3.3 2 6.2 5 7.4V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.6c3-1.2 5-4.1 5-7.4a8 8 0 0 0-8-8z"></path><line x1="9.5" y1="9" x2="9.51" y2="9"></line><line x1="14.5" y1="9" x2="14.51" y2="9"></line><path d="M10 13c.5.5 1.5.5 2 0"></path></svg>
+          Поведение & Знания
+        </button>
+        <button class="nav-item" data-tab="tab-whitelabel">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          White-Label & Реквизиты
+        </button>
+        <button class="nav-item" data-tab="tab-orders">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+          Заказы & Накладные
+        </button>
+        <button class="nav-item" data-tab="tab-debts">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+          Дебиторка & Акты
+        </button>
+        <button class="nav-item" data-tab="tab-sleepers">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          Спящие клиенты
+        </button>
+        <button class="nav-item" data-tab="tab-simulator">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          Live AI Симулятор
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="linko-badge" id="linkoStatusBadge" title="Боевое подключение к Linko External API активно">
+          <div class="dot-green"></div>
+          <span id="linkoBadgeText">Linko API: Боевой (Live)</span>
+        </div>
+        <div class="system-time" id="serverClock">--:--:--</div>
+      </div>
+    </aside>
+
+    <!-- Основной контент -->
+    <main class="main-content">
+      <!-- Верхняя панель управления -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 id="pageTitle">Дашборд & KPI</h1>
+          <span class="topbar-subtitle" id="topSubtitle">Мониторинг автоматизации и заказов</span>
+        </div>
+
+        <div class="topbar-actions">
+          <!-- Главный мастер-тумблер ВКЛ/ВЫКЛ -->
+          <div class="master-switch-card">
+            <span class="master-switch-label">СТАТУС БОТА:</span>
+            <button id="btnToggleBot" class="btn-toggle-bot active" title="Нажмите, чтобы включить/выключить бота">
+              <span class="toggle-indicator"></span>
+              <span id="botStatusText">ВКЛЮЧЕН</span>
+            </button>
+          </div>
+
+          <!-- Селектор режимов работы -->
+          <div class="mode-selector-wrapper">
+            <label for="modeSelect" class="mode-label">Режим:</label>
+            <select id="modeSelect" class="mode-select">
+              <option value="live">🟢 Live (Боевой)</option>
+              <option value="assist">🟡 Assist (Полуавтомат)</option>
+              <option value="shadow">🟣 Shadow (Теневой)</option>
+              <option value="dry_run">⚪ Dry Run (Холостой)</option>
+            </select>
+          </div>
+
+          <!-- Кнопка быстрой синхронизации -->
+          <button id="btnSyncLinko" class="btn-action">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            <span>Синхронизация</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Вкладки контента -->
+      <div class="tab-contents">
+        
+        <!-- 1. ДАШБОРД -->
+        <section id="tab-overview" class="tab-pane active">
+          <!-- Карточки KPI -->
+          <div class="kpi-grid">
+            <div class="kpi-card glow-cyan">
+              <div class="kpi-header">
+                <span class="kpi-title">Выручка по заказам</span>
+                <span class="kpi-badge">Всего</span>
+              </div>
+              <div class="kpi-value" id="kpiVolume">— сум</div>
+              <div class="kpi-footer">
+                <span id="kpiOrdersCount">0</span> оформленных заказов
+              </div>
+            </div>
+
+            <div class="kpi-card glow-emerald">
+              <div class="kpi-header">
+                <span class="kpi-title">Общая дебиторка</span>
+                <span class="kpi-badge warning">FIFO</span>
+              </div>
+              <div class="kpi-value" id="kpiTotalDebt">— сум</div>
+              <div class="kpi-footer">
+                Должников: <strong id="kpiDebtorsCount">0</strong>
+              </div>
+            </div>
+
+            <div class="kpi-card glow-rose">
+              <div class="kpi-header">
+                <span class="kpi-title">Просроченный долг</span>
+                <span class="kpi-badge danger">> 0 дн</span>
+              </div>
+              <div class="kpi-value" id="kpiOverdue">— сум</div>
+              <div class="kpi-footer">
+                Требует внимания бухгалтерии
+              </div>
+            </div>
+
+            <div class="kpi-card glow-purple">
+              <div class="kpi-header">
+                <span class="kpi-title">Спящие клиенты</span>
+                <span class="kpi-badge alert">CRM M4</span>
+              </div>
+              <div class="kpi-value" id="kpiSleepersCount">0</div>
+              <div class="kpi-footer">
+                Клиентов с нарушением цикла закупок
+              </div>
+            </div>
+          </div>
+
+          <!-- Распределение старения дебиторки -->
+          <div class="card mt-6">
+            <div class="card-header">
+              <h3>Анализ старения дебиторской задолженности (Aging Buckets)</h3>
+              <span class="card-sub">Классификация по срокам неоплаты</span>
+            </div>
+            <div class="aging-bars">
+              <div class="aging-bar-item">
+                <div class="aging-label">
+                  <span>0 – 7 дней (Свежий долг)</span>
+                  <strong id="aging0_7">—</strong>
+                </div>
+                <div class="progress-track"><div id="bar0_7" class="progress-fill fill-green" style="width: 0%"></div></div>
+              </div>
+              <div class="aging-bar-item">
+                <div class="aging-label">
+                  <span>8 – 30 дней (Рабочая отсрочка)</span>
+                  <strong id="aging8_30">—</strong>
+                </div>
+                <div class="progress-track"><div id="bar8_30" class="progress-fill fill-cyan" style="width: 0%"></div></div>
+              </div>
+              <div class="aging-bar-item">
+                <div class="aging-label">
+                  <span>31 – 60 дней (Просрочка)</span>
+                  <strong id="aging31_60">—</strong>
+                </div>
+                <div class="progress-track"><div id="bar31_60" class="progress-fill fill-amber" style="width: 0%"></div></div>
+              </div>
+              <div class="aging-bar-item">
+                <div class="aging-label">
+                  <span>60+ дней (Критическая задолженность)</span>
+                  <strong id="aging60p">—</strong>
+                </div>
+                <div class="progress-track"><div id="bar60p" class="progress-fill fill-rose" style="width: 0%"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Лента последних заказов -->
+          <div class="card mt-6">
+            <div class="card-header flex-between">
+              <div>
+                <h3>Последние заказы</h3>
+                <span class="card-sub">Оперативная лента отгрузок и генерация накладных</span>
+              </div>
+              <button class="btn-secondary" onclick="app.switchTab('tab-orders')">Смотреть все заказы</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>№ Заказа</th>
+                    <th>Заведение / Точка</th>
+                    <th>Дата</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Источник</th>
+                    <th>Накладная</th>
+                  </tr>
+                </thead>
+                <tbody id="recentOrdersTbody">
+                  <tr><td colspan="7" class="text-center py-6 text-muted">Загрузка данных...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. ПОВЕДЕНИЕ & БАЗА ЗНАНИЙ -->
+        <section id="tab-behavior" class="tab-pane">
+          <div class="card">
+            <div class="card-header">
+              <h3>Обучение и настройка поведения AI-агента</h3>
+              <p class="card-sub">Скармливайте боту данные компании, регламенты, правила общения и FAQ. Изменения применяются мгновенно без перезапуска сервера.</p>
+            </div>
+
+            <form id="formBehavior" class="settings-form">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Имя менеджера (Персона бота)</label>
+                  <input type="text" id="cfgManagerName" class="form-input" placeholder="Например: Шохрух или Тимур">
+                  <span class="field-hint">От имени этого менеджера бот представляется клиентам в переписке.</span>
+                </div>
+
+                <div class="form-group">
+                  <label>Должность / роль</label>
+                  <input type="text" id="cfgManagerRole" class="form-input" placeholder="ведущий менеджер отдела продаж">
+                </div>
+              </div>
+
+              <div class="form-group mt-4">
+                <label>База знаний компании (Knowledge Base / Регламенты / FAQ)</label>
+                <textarea id="cfgKnowledgeBase" class="form-textarea" rows="7" placeholder="Опишите условия доставки, минимальный заказ, график работы, адреса складов, условия оплаты и всё, что бот должен знать о вашем бизнесе..."></textarea>
+                <span class="field-hint">Нейросеть будет строго ориентироваться на эти данные при ответах на вопросы клиентов.</span>
+              </div>
+
+              <div class="form-group mt-4">
+                <label>Дополнительные правила поведения & Tone-of-Voice</label>
+                <textarea id="cfgCustomRules" class="form-textarea" rows="4" placeholder="Например: Всегда предлагать тунец Dardanel в акции. Не давать скидки без согласования. Отвечать лаконично."></textarea>
+              </div>
+
+              <div class="form-grid mt-4">
+                <div class="form-group">
+                  <label>Шаблон приветствия (Русский)</label>
+                  <input type="text" id="cfgGreetingRu" class="form-input" placeholder="Здравствуйте! Меня зовут {manager_name}, компания {company_name}. Чем могу помочь?">
+                  <span class="field-hint">Поддерживает переменные {manager_name} и {company_name}.</span>
+                </div>
+                <div class="form-group">
+                  <label>Шаблон приветствия (Узбекский)</label>
+                  <input type="text" id="cfgGreetingUz" class="form-input" placeholder="Ассалому алейкум! Мен {manager_name}, {company_name} компаниясидан. Қандай ёрдам бера оламан?">
+                </div>
+              </div>
+
+              <div class="form-actions mt-6">
+                <button type="submit" class="btn-primary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                  Сохранить поведение и знания
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- 3. WHITE-LABEL & РЕКВИЗИТЫ -->
+        <section id="tab-whitelabel" class="tab-pane">
+          <div class="card">
+            <div class="card-header">
+              <h3>White-Label кастомизация для продажи решения «под ключ»</h3>
+              <p class="card-sub">Задайте реквизиты нового дистрибьютора. Они будут автоматически встроены во все генерируемые PDF-накладные, акты сверок и системные диалоги.</p>
+            </div>
+
+            <form id="formWhiteLabel" class="settings-form">
+              <h4 class="form-section-title">Реквизиты компании-поставщика</h4>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Название организации</label>
+                  <input type="text" id="cfgCompanyName" class="form-input" placeholder="ООО «AKM HOLDINGS INC»">
+                </div>
+                <div class="form-group">
+                  <label>ИНН</label>
+                  <input type="text" id="cfgCompanyInn" class="form-input" placeholder="308057864">
+                </div>
+                <div class="form-group">
+                  <label>МФО Банка</label>
+                  <input type="text" id="cfgCompanyMfo" class="form-input" placeholder="00440">
+                </div>
+                <div class="form-group">
+                  <label>Расчетный счет (р/с)</label>
+                  <input type="text" id="cfgCompanyAccount" class="form-input" placeholder="2020 8000 0053 2388 6001">
+                </div>
+                <div class="form-group">
+                  <label>Наименование банка</label>
+                  <input type="text" id="cfgCompanyBank" class="form-input" placeholder="АКБ 'УЗСАНОАТКУРИЛИШБАНКИ'">
+                </div>
+                <div class="form-group">
+                  <label>Контактный телефон</label>
+                  <input type="text" id="cfgCompanyPhone" class="form-input" placeholder="+998 99 9255955">
+                </div>
+              </div>
+
+              <div class="form-group mt-3">
+                <label>Юридический адрес</label>
+                <input type="text" id="cfgCompanyAddress" class="form-input" placeholder="г. Ташкент, Мирабадский район, ул. Сайхун, дом 170А/16">
+              </div>
+
+              <h4 class="form-section-title mt-6">Ключи доступа и нейросеть</h4>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Telegram Bot Token</label>
+                  <input type="password" id="cfgBotToken" class="form-input" placeholder="Токен из @BotFather">
+                </div>
+                <div class="form-group">
+                  <label>Gemini API Key</label>
+                  <input type="password" id="cfgGeminiKey" class="form-input" placeholder="AI Studio Key">
+                </div>
+                <div class="form-group">
+                  <label>Модель Gemini</label>
+                  <select id="cfgGeminiModel" class="form-select">
+                    <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (Рекомендуется — быстрый)</option>
+                    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                    <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Linko Base URL</label>
+                  <input type="text" id="cfgLinkoUrl" class="form-input" placeholder="https://akm.linko.uz">
+                </div>
+              </div>
+
+              <div class="form-actions mt-6">
+                <button type="submit" class="btn-primary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                  Сохранить реквизиты White-Label
+                </button>
+              </div>
+            </form>
+
+            <div class="card-divider"></div>
+
+            <!-- Синхронизация с Telegram Bot API -->
+            <div class="telegram-sync-box">
+              <div class="sync-box-header">
+                <h4>Синхронизация профиля в Telegram</h4>
+                <p class="card-sub">Прямая смена названия и описания бота через Telegram Bot API без входа в BotFather.</p>
+              </div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Имя бота в Telegram (Display Name)</label>
+                  <input type="text" id="tgName" class="form-input" placeholder="Например: Заказы Sayam & Burcu">
+                </div>
+                <div class="form-group">
+                  <label>Короткое описание в профиле</label>
+                  <input type="text" id="tgShortDesc" class="form-input" placeholder="Официальный бот приёма оптовых заказов и сверок">
+                </div>
+              </div>
+              <div class="form-group mt-3">
+                <label>Полное описание (Экран до нажатия кнопки Начать)</label>
+                <textarea id="tgDesc" class="form-textarea" rows="2" placeholder="Приём заказов по каталогу, сверка задолженностей, счета-фактуры и акты для ресторанов и маркетов."></textarea>
+              </div>
+              <div class="mt-4">
+                <button id="btnPushTelegramProfile" class="btn-secondary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"></path><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                  Отправить в Telegram Bot API
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 4. ЗАКАЗЫ & НАКЛАДНЫЕ -->
+        <section id="tab-orders" class="tab-pane">
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>Журнал заказов и накладные</h3>
+                <span class="card-sub">Все отгрузки, статусы, быстрый просмотр состава и печать PDF</span>
+              </div>
+              <button class="btn-secondary" onclick="app.loadOrders()">Обновить список</button>
+            </div>
+
+            <!-- Фильтры и поиск заказов -->
+            <div class="filter-bar">
+              <input type="text" id="orderSearchInput" class="filter-input" placeholder="🔍 Поиск по названию заведения или номеру заказа...">
+              <select id="orderStatusFilter" class="filter-select">
+                <option value="all">Все статусы</option>
+                <option value="delivered">Доставлен (Delivered)</option>
+                <option value="new">Новый / В обработке (New)</option>
+                <option value="cancel">Отменен (Cancel)</option>
+              </select>
+              <span id="orderCountBadge" class="badge-sub">Заказов: 0</span>
+            </div>
+
+            <div class="table-responsive mt-4">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>№</th>
+                    <th>Заведение / Точка</th>
+                    <th>Дата создания</th>
+                    <th>Дата доставки</th>
+                    <th>Оплата</th>
+                    <th>Сумма заказа</th>
+                    <th>Статус</th>
+                    <th>Источник</th>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersFullTbody">
+                  <tr><td colspan="9" class="text-center py-6 text-muted">Загрузка заказов...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 5. ДЕБИТОРКА & АКТЫ СВЕРКИ -->
+        <section id="tab-debts" class="tab-pane">
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>Дебиторская задолженность и Акты сверки</h3>
+                <span class="card-sub">Баланс контрагентов по методу FIFO со старением долга</span>
+              </div>
+              <button class="btn-secondary" onclick="app.loadDebts()">Обновить дебиторку</button>
+            </div>
+
+            <!-- Фильтры и поиск дебиторки -->
+            <div class="filter-bar">
+              <input type="text" id="debtSearchInput" class="filter-input" placeholder="🔍 Поиск должника по названию или ИНН...">
+              <button id="btnFilterOverdueOnly" class="filter-chip">Только с просрочкой</button>
+              <span id="debtCountBadge" class="badge-sub">Должников: 0</span>
+            </div>
+
+            <div class="table-responsive mt-4">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Точка / Клиент</th>
+                    <th>ИНН</th>
+                    <th>Телефон</th>
+                    <th>Общий долг</th>
+                    <th>Просрочено</th>
+                    <th>0-7 дн</th>
+                    <th>8-30 дн</th>
+                    <th>31-60 дн</th>
+                    <th>60+ дн</th>
+                    <th>Акт сверки</th>
+                  </tr>
+                </thead>
+                <tbody id="debtsTbody">
+                  <tr><td colspan="10" class="text-center py-6 text-muted">Загрузка дебиторки...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- 6. СПЯЩИЕ КЛИЕНТЫ -->
+        <section id="tab-sleepers" class="tab-pane">
+          <div class="card">
+            <div class="card-header flex-between">
+              <div>
+                <h3>Спящие точки и умная реактивация (CRM M4)</h3>
+                <span class="card-sub">Автоматический расчёт индивидуального цикла повторных закупок и готовые персонализированные офферы</span>
+              </div>
+              <button class="btn-secondary" onclick="app.loadSleepers()">Анализировать базу</button>
+            </div>
+
+            <!-- Фильтры спящих клиентов -->
+            <div class="filter-bar">
+              <input type="text" id="sleeperSearchInput" class="filter-input" placeholder="🔍 Поиск спящего клиента...">
+              <select id="sleeperOverdueFilter" class="filter-select">
+                <option value="0">Любая просрочка</option>
+                <option value="7">Просрочка > 7 дней</option>
+                <option value="14">Просрочка > 14 дней</option>
+                <option value="30">Просрочка > 30 дней</option>
+              </select>
+              <span id="sleeperCountBadge" class="badge-sub">Спящих точек: 0</span>
+            </div>
+
+            <div id="sleepersContainer" class="sleepers-grid mt-4">
+              <div class="text-center py-8 text-muted w-100">Загрузка клиентов...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 7. LIVE AI СИМУЛЯТОР -->
+        <section id="tab-simulator" class="tab-pane">
+          <div class="simulator-layout">
+            <!-- Чат-интерфейс -->
+            <div class="chat-card">
+              <div class="chat-header">
+                <div class="chat-title-wrapper">
+                  <div class="chat-avatar">AI</div>
+                  <div>
+                    <h4 id="simManagerName">Шохрух (AI Менеджер)</h4>
+                    <span class="sim-status">● Готов к диалогу в песочнице</span>
+                  </div>
+                </div>
+
+                <div class="sim-controls">
+                  <select id="simMarketSelect" class="form-select-sm">
+                    <option value="">Клиент без точки (Гость)</option>
+                    <option value="-1">Ресторан Oasis</option>
+                    <option value="-2">Ресторан Jigarim</option>
+                    <option value="-5">Caravan City</option>
+                  </select>
+                  <button id="btnClearChat" class="btn-icon" title="Очистить диалог">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="chatMessages" class="chat-messages">
+                <div class="chat-bubble bot">
+                  Здравствуйте! Я AI-ассистент оптового отдела. Вы можете протестировать заказ товаров, запросы цен, прайс-лист или проверить работу на узбекском и русском языках.
+                </div>
+              </div>
+
+              <form id="chatForm" class="chat-input-row">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Напишите сообщение боту (например: Assalomu alaykum, olma sirkasi bormi?)..." autocomplete="off">
+                <button type="submit" id="btnSendChat" class="btn-send">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+              </form>
+            </div>
+
+            <!-- Инспектор мышления и инструментов -->
+            <div class="inspector-card">
+              <div class="inspector-header">
+                <h4>Инспектор рассуждений и инструментов</h4>
+                <span class="card-sub">Что нейросеть вызвала в фоновом режиме</span>
+              </div>
+              <div id="inspectorContent" class="inspector-content">
+                <p class="text-muted text-sm">Отправьте сообщение в чат слева, чтобы увидеть вызовы инструментов (найденные товары, сверку цен по прайсу, проверку остатков на складе и handoff менеджеру).</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Модальное окно: Состав и детали заказа -->
+  <div id="orderModal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="modalOrderTitle">Заказ #...</h3>
+          <span id="modalOrderSub" class="text-muted text-sm">Заведение</span>
+        </div>
+        <button id="btnCloseOrderModal" class="btn-icon" title="Закрыть">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="order-meta-grid" id="modalOrderMeta">
+          <!-- Заполняется динамически -->
+        </div>
+
+        <h4 class="mt-4 mb-2">Содержимое заказа (Товары)</h4>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>№</th>
+                <th>Наименование товара</th>
+                <th>Ед.</th>
+                <th>Кол-во</th>
+                <th>Цена (сум)</th>
+                <th>Сумма (сум)</th>
+              </tr>
+            </thead>
+            <tbody id="modalOrderItemsTbody">
+              <tr><td colspan="6" class="text-center py-6 text-muted">Загрузка позиций...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-total-bar mt-4">
+          <span>Итоговая сумма заказа:</span>
+          <strong id="modalOrderTotal">0 сум</strong>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnModalClose" class="btn-secondary">Закрыть</button>
+        <a id="btnModalDownloadPdf" href="#" target="_blank" class="btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+          Печать накладной PDF
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Всплывающие уведомления (Toasts) -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="/admin/app.js"></script>
+</body>
+</html>

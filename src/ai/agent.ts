@@ -1,7 +1,9 @@
 import { config } from '../config.js';
 import { log } from '../lib/logger.js';
+import { getAllSettings } from '../lib/settings.js';
 import { TOOL_DECLARATIONS, callTool, listMedia, type ToolContext } from './tools.js';
-import { SYSTEM_CHANNEL_A, SYSTEM_CHANNEL_B, buildContext, detectLang } from './prompt.js';
+import { SYSTEM_CHANNEL_A, SYSTEM_CHANNEL_B, getSystemPromptA, buildContext, detectLang } from './prompt.js';
+
 
 /**
  * Клиент Gemini поверх REST — без SDK.
@@ -52,8 +54,14 @@ export interface AgentInput {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function generate(body: unknown, attempt = 1): Promise<GenerateResponse> {
-  const url = `${BASE}/models/${config.GEMINI_MODEL}:generateContent?key=${config.GEMINI_API_KEY}`;
+async function generate(
+  body: unknown,
+  attempt = 1,
+  opts?: { apiKey?: string; model?: string },
+): Promise<GenerateResponse> {
+  const activeKey = opts?.apiKey || config.GEMINI_API_KEY;
+  const activeModel = opts?.model || config.GEMINI_MODEL;
+  const url = `${BASE}/models/${activeModel}:generateContent?key=${activeKey}`;
 
   const res = await fetch(url, {
     method: 'POST',
@@ -74,13 +82,13 @@ async function generate(body: unknown, attempt = 1): Promise<GenerateResponse> {
       const waitMs = Math.min(Math.ceil(Number(m?.[1] ?? 30)) + 2, 70) * 1000;
       log.warn(`Gemini: лимит запросов, жду ${Math.round(waitMs / 1000)} с и повторяю`);
       await sleep(waitMs);
-      return generate(body, attempt + 1);
+      return generate(body, attempt + 1, opts);
     }
 
     const hint =
       res.status === 429 ? ' — упёрлись в бесплатный лимит, подождите минуту'
       : res.status === 400 && /API key/i.test(msg) ? ' — проверьте GEMINI_API_KEY'
-      : res.status === 404 ? ` — модель «${config.GEMINI_MODEL}» недоступна, посмотрите список: npm run models`
+      : res.status === 404 ? ` — модель «${activeModel}» недоступна, посмотрите список: npm run models`
       : '';
     throw new Error(msg + hint);
   }
@@ -101,11 +109,16 @@ function looksLikeHandoffPromise(reply: string): boolean {
 
 /** Один ход разговора: вопрос клиента → ответ, с вызовами инструментов по пути */
 export async function runAgent(input: AgentInput): Promise<AgentTurn> {
-  if (!config.GEMINI_API_KEY) {
+  const settings = await getAllSettings();
+  const apiKey = settings.gemini_api_key || config.GEMINI_API_KEY;
+  const model = settings.gemini_model || config.GEMINI_MODEL;
+
+  if (!apiKey) {
     return { reply: '', toolCalls: [], attachments: [], error: 'GEMINI_API_KEY не задан' };
   }
 
-  const system = (input.channel === 'A' ? SYSTEM_CHANNEL_A : SYSTEM_CHANNEL_B)
+  const baseSystem = input.channel === 'A' ? await getSystemPromptA(settings) : SYSTEM_CHANNEL_B;
+  const system = baseSystem
     + '\n\n'
     + buildContext({
       // Без этого списка модель не знает, какие файлы существуют,
@@ -145,7 +158,7 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
           // Нам не нужны длинные рассуждения — нужен быстрый короткий ответ.
           thinkingConfig: { thinkingLevel: 'low' },
         },
-      });
+      }, 1, { apiKey, model });
     } catch (e) {
       log.error('Gemini не ответил', (e as Error).message);
       return { reply: '', toolCalls, attachments, error: (e as Error).message };

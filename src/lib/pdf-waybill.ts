@@ -8,6 +8,8 @@ import { orders, orderItems, markets, payments } from '../db/schema.js';
 import { fmtSum, fmtDate, fmtNum, fmtAmount, todayTashkent, toSum } from './money.js';
 import { config } from '../config.js';
 import { log } from './logger.js';
+import { getCompanyProfile } from './settings.js';
+
 
 const COMPANY_INFO = {
   name: 'ООО «AKM HOLDINGS INC»',
@@ -49,6 +51,7 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
   const [o] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
   if (!o) throw new Error(`Заказ №${orderId} не найден`);
 
+  const company = await getCompanyProfile();
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
   const market = o.marketId ? (await db.select().from(markets).where(eq(markets.id, o.marketId)).limit(1))[0] : null;
 
@@ -76,7 +79,7 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
 
   // --- РЕКВИЗИТЫ СТОРОН ---
   cursorY -= 22;
-  page.drawText(`Поставщик: ${COMPANY_INFO.name}`, { x: marginX, y: cursorY, size: 9.5, font: boldFont });
+  page.drawText(`Поставщик: ${company.name}`, { x: marginX, y: cursorY, size: 9.5, font: boldFont });
   cursorY -= 14;
   const buyerName = o.marketName || market?.name || 'Покупатель не указан';
   const buyerInn = o.marketInn || market?.inn || '—';
@@ -115,39 +118,49 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
 
   const rowHeight = 20;
 
-  // Заголовок таблицы (серый фон)
-  page.drawRectangle({
-    x: marginX,
-    y: cursorY - 5,
-    width: width - marginX * 2,
-    height: rowHeight,
-    color: rgb(0.92, 0.94, 0.93),
-  });
+  const drawWaybillHeader = (p: typeof page, y: number) => {
+    p.drawRectangle({
+      x: marginX,
+      y: y - 5,
+      width: width - marginX * 2,
+      height: rowHeight,
+      color: rgb(0.92, 0.94, 0.93),
+    });
 
-  page.drawText('№', { x: colX.num + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Товары (наименование)', { x: colX.name + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Ед.', { x: colX.unit + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Кол-во', { x: colX.qty + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Цена (сум)', { x: colX.price + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Сумма (сум)', { x: colX.total + 5, y: cursorY, size: 8.5, font: boldFont });
+    p.drawText('№', { x: colX.num + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Товары (наименование)', { x: colX.name + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Ед.', { x: colX.unit + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Кол-во', { x: colX.qty + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Цена (сум)', { x: colX.price + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Сумма (сум)', { x: colX.total + 5, y, size: 8.5, font: boldFont });
 
-  // Граница заголовка
-  page.drawRectangle({
-    x: marginX,
-    y: cursorY - 5,
-    width: width - marginX * 2,
-    height: rowHeight,
-    borderWidth: 0.8,
-    borderColor: rgb(0.5, 0.5, 0.5),
-  });
+    p.drawRectangle({
+      x: marginX,
+      y: y - 5,
+      width: width - marginX * 2,
+      height: rowHeight,
+      borderWidth: 0.8,
+      borderColor: rgb(0.5, 0.5, 0.5),
+    });
+  };
 
+  drawWaybillHeader(page, cursorY);
   cursorY -= rowHeight;
+
+  let currentPage = page;
 
   // Строки товаров
   for (let i = 0; i < items.length; i++) {
+    if (cursorY - rowHeight < 60) {
+      currentPage = pdfDoc.addPage([595.28, 841.89]);
+      cursorY = height - 40;
+      drawWaybillHeader(currentPage, cursorY);
+      cursorY -= rowHeight;
+    }
+
     const it = items[i]!;
 
-    page.drawRectangle({
+    currentPage.drawRectangle({
       x: marginX,
       y: cursorY - 5,
       width: width - marginX * 2,
@@ -156,22 +169,32 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
       borderColor: rgb(0.8, 0.8, 0.8),
     });
 
-    const shortName = (it.productName || `Товар #${it.productId}`).slice(0, 42);
-    page.drawText(String(i + 1), { x: colX.num + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(shortName, { x: colX.name + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(it.measurementName || 'шт', { x: colX.unit + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(fmtAmount(it.amount), { x: colX.qty + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(fmtNum(it.price), { x: colX.price + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(fmtNum(it.totalPrice), { x: colX.total + 5, y: cursorY, size: 8, font: boldFont });
+    let shortName = it.productName || `Товар #${it.productId}`;
+    while (shortName.length > 10 && regularFont.widthOfTextAtSize(shortName, 8) > 220) {
+      shortName = shortName.slice(0, -4) + '...';
+    }
+
+    currentPage.drawText(String(i + 1), { x: colX.num + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(shortName, { x: colX.name + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(it.measurementName || 'шт', { x: colX.unit + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(fmtAmount(it.amount), { x: colX.qty + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(fmtNum(it.price), { x: colX.price + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(fmtNum(it.totalPrice), { x: colX.total + 5, y: cursorY, size: 8, font: boldFont });
 
     cursorY -= rowHeight;
+  }
+
+  // Проверка места под итоги и подписи (нужно ~120 пунктов)
+  if (cursorY < 130) {
+    currentPage = pdfDoc.addPage([595.28, 841.89]);
+    cursorY = height - 40;
   }
 
   // --- ИТОГИ ---
   cursorY -= 8;
   const discount = Number(o.discountPrice ?? 0);
   if (discount > 0) {
-    page.drawText(`Скидка: -${fmtSum(discount)}`, {
+    currentPage.drawText(`Скидка: -${fmtSum(discount)}`, {
       x: colX.price - 40,
       y: cursorY,
       size: 9,
@@ -181,7 +204,7 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
     cursorY -= 14;
   }
 
-  page.drawText(`ИТОГО К ОПЛАТЕ: ${fmtSum(o.totalPrice)}`, {
+  currentPage.drawText(`ИТОГО К ОПЛАТЕ: ${fmtSum(o.totalPrice)}`, {
     x: colX.price - 40,
     y: cursorY,
     size: 10.5,
@@ -190,7 +213,7 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
   });
 
   cursorY -= 20;
-  page.drawText(`Всего наименований: ${items.length}, на сумму: ${fmtSum(o.totalPrice)}. Без НДС.`, {
+  currentPage.drawText(`Всего наименований: ${items.length}, на сумму: ${fmtSum(o.totalPrice)}. Без НДС.`, {
     x: marginX,
     y: cursorY,
     size: 8.5,
@@ -199,7 +222,7 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
 
   // --- ПОДПИСИ СТОРОН ---
   cursorY -= 50;
-  page.drawLine({
+  currentPage.drawLine({
     start: { x: marginX, y: cursorY + 15 },
     end: { x: width - marginX, y: cursorY + 15 },
     thickness: 0.5,
@@ -209,17 +232,34 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
   const colWidth = (width - marginX * 2 - 40) / 2;
 
   // Поставщик
-  page.drawText('Отпустил (Поставщик):', { x: marginX, y: cursorY, size: 9, font: boldFont });
-  page.drawText('Экспедитор: __________________________', { x: marginX, y: cursorY - 18, size: 8.5, font: regularFont });
-  page.drawText('(подпись / Ф.И.О.)', { x: marginX + 60, y: cursorY - 28, size: 7, font: regularFont, color: rgb(0.5, 0.5, 0.5) });
-  page.drawText('М.П.', { x: marginX + 180, y: cursorY - 45, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
+  currentPage.drawText('Отпустил (Поставщик):', { x: marginX, y: cursorY, size: 9, font: boldFont });
+  currentPage.drawText('Экспедитор: __________________________', { x: marginX, y: cursorY - 18, size: 8.5, font: regularFont });
+  currentPage.drawText('(подпись / Ф.И.О.)', { x: marginX + 60, y: cursorY - 28, size: 7, font: regularFont, color: rgb(0.5, 0.5, 0.5) });
+  currentPage.drawText('М.П.', { x: marginX + 180, y: cursorY - 45, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
 
   // Покупатель
   const rightX = marginX + colWidth + 40;
-  page.drawText('Принял (Покупатель):', { x: rightX, y: cursorY, size: 9, font: boldFont });
-  page.drawText('Заказчик: ____________________________', { x: rightX, y: cursorY - 18, size: 8.5, font: regularFont });
-  page.drawText('(подпись / Ф.И.О.)', { x: rightX + 60, y: cursorY - 28, size: 7, font: regularFont, color: rgb(0.5, 0.5, 0.5) });
-  page.drawText('М.П.', { x: rightX + 180, y: cursorY - 45, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
+  currentPage.drawText('Принял (Покупатель):', { x: rightX, y: cursorY, size: 9, font: boldFont });
+  currentPage.drawText('Заказчик: ____________________________', { x: rightX, y: cursorY - 18, size: 8.5, font: regularFont });
+  currentPage.drawText('(подпись / Ф.И.О.)', { x: rightX + 60, y: cursorY - 28, size: 7, font: regularFont, color: rgb(0.5, 0.5, 0.5) });
+  currentPage.drawText('М.П.', { x: rightX + 180, y: cursorY - 45, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
+
+  // Добавляем нумерацию страниц при наличии более 1 страницы
+  const totalWaybillPages = pdfDoc.getPageCount();
+  if (totalWaybillPages > 1) {
+    for (let pIdx = 0; pIdx < totalWaybillPages; pIdx++) {
+      const p = pdfDoc.getPage(pIdx);
+      const str = `Страница ${pIdx + 1} из ${totalWaybillPages}`;
+      const strW = regularFont.widthOfTextAtSize(str, 8);
+      p.drawText(str, {
+        x: width - marginX - strW,
+        y: 20,
+        size: 8,
+        font: regularFont,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+    }
+  }
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
@@ -255,16 +295,17 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
 
   const pdfDoc = await PDFDocument.create();
   const { regularFont, boldFont } = await loadFonts(pdfDoc);
+  const company = await getCompanyProfile();
 
-  const page = pdfDoc.addPage([595.28, 841.89]);
+  let page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
   const marginX = 40;
   let cursorY = height - 40;
 
   // Шапка
-  page.drawText(COMPANY_INFO.name, { x: marginX, y: cursorY, size: 12, font: boldFont, color: rgb(0.08, 0.35, 0.3) });
+  page.drawText(company.name, { x: marginX, y: cursorY, size: 12, font: boldFont, color: rgb(0.08, 0.35, 0.3) });
   cursorY -= 14;
-  page.drawText(`ИНН: ${COMPANY_INFO.inn} · Тел: ${COMPANY_INFO.phone}`, { x: marginX, y: cursorY, size: 8, font: regularFont });
+  page.drawText(`ИНН: ${company.inn} · Тел: ${company.phone}`, { x: marginX, y: cursorY, size: 8, font: regularFont });
 
   cursorY -= 22;
   const title = `АКТ СВЕРКИ ВЗАИМНЫХ РАСЧЕТОВ`;
@@ -272,7 +313,7 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   page.drawText(title, { x: (width - titleW) / 2, y: cursorY, size: 13, font: boldFont });
 
   cursorY -= 16;
-  const sub = `между ${COMPANY_INFO.name} и «${market.name}» по состоянию на ${fmtDate(todayTashkent())}`;
+  const sub = `между ${company.name} и «${market.name}» по состоянию на ${fmtDate(todayTashkent())}`;
   const subW = regularFont.widthOfTextAtSize(sub, 9);
   page.drawText(sub, { x: (width - subW) / 2, y: cursorY, size: 9, font: regularFont });
 
@@ -290,46 +331,101 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
 
   const rowH = 18;
 
-  page.drawRectangle({
-    x: marginX, y: cursorY - 5, width: width - marginX * 2, height: rowH, color: rgb(0.92, 0.94, 0.93),
-  });
+  const drawReconciliationHeader = (p: typeof page, y: number) => {
+    p.drawRectangle({
+      x: marginX, y: y - 5, width: width - marginX * 2, height: rowH, color: rgb(0.92, 0.94, 0.93),
+    });
 
-  page.drawText('Дата', { x: colX.date + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Документ / Основание', { x: colX.doc + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Отгрузка (дебет)', { x: colX.debet + 5, y: cursorY, size: 8.5, font: boldFont });
-  page.drawText('Оплата (кредит)', { x: colX.credit + 5, y: cursorY, size: 8.5, font: boldFont });
+    p.drawText('Дата', { x: colX.date + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Документ / Основание', { x: colX.doc + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Отгрузка (дебет)', { x: colX.debet + 5, y, size: 8.5, font: boldFont });
+    p.drawText('Оплата (кредит)', { x: colX.credit + 5, y, size: 8.5, font: boldFont });
+
+    p.drawRectangle({
+      x: marginX, y: y - 5, width: width - marginX * 2, height: rowH, borderWidth: 0.8, borderColor: rgb(0.5, 0.5, 0.5),
+    });
+  };
+
+  drawReconciliationHeader(page, cursorY);
   cursorY -= rowH;
 
+  // Объединяем операции в единую хронологическую ленту
+  interface OperationRow {
+    date: string;
+    doc: string;
+    debit: number;
+    credit: number;
+  }
+
+  const operations: OperationRow[] = [];
   let totalOrders = 0;
   let totalPayments = 0;
 
-  // Накладные
   for (const o of mOrders) {
     const sum = toSum(o.totalPrice);
     totalOrders += sum;
-
-    page.drawText(fmtDate(o.createdDate), { x: colX.date + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(`Накладная №${Math.abs(o.id)}`, { x: colX.doc + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(fmtSum(sum), { x: colX.debet + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText('—', { x: colX.credit + 5, y: cursorY, size: 8, font: regularFont });
-    cursorY -= rowH;
+    operations.push({
+      date: o.createdDate || '',
+      doc: `Накладная №${Math.abs(o.id)}`,
+      debit: sum,
+      credit: 0,
+    });
   }
 
-  // Оплаты
   for (const p of mPayments) {
     const sum = toSum(p.amount);
     totalPayments += sum;
+    operations.push({
+      date: p.createdDate || '',
+      doc: `Оплата №${Math.abs(p.id)} (${p.paymentType ?? 'банк'})`,
+      debit: 0,
+      credit: sum,
+    });
+  }
 
-    page.drawText(fmtDate(p.createdDate), { x: colX.date + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(`Оплата №${Math.abs(p.id)} (${p.paymentType ?? 'банк'})`, { x: colX.doc + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText('—', { x: colX.debet + 5, y: cursorY, size: 8, font: regularFont });
-    page.drawText(fmtSum(sum), { x: colX.credit + 5, y: cursorY, size: 8, font: regularFont });
+  // Сортировка по дате
+  operations.sort((a, b) => a.date.localeCompare(b.date));
+
+  let currentPage = page;
+
+  for (const op of operations) {
+    if (cursorY - rowH < 60) {
+      currentPage = pdfDoc.addPage([595.28, 841.89]);
+      cursorY = height - 40;
+      drawReconciliationHeader(currentPage, cursorY);
+      cursorY -= rowH;
+    }
+
+    currentPage.drawRectangle({
+      x: marginX,
+      y: cursorY - 5,
+      width: width - marginX * 2,
+      height: rowH,
+      borderWidth: 0.5,
+      borderColor: rgb(0.85, 0.85, 0.85),
+    });
+
+    currentPage.drawText(fmtDate(op.date), { x: colX.date + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(op.doc, { x: colX.doc + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(op.debit > 0 ? fmtSum(op.debit) : '—', { x: colX.debet + 5, y: cursorY, size: 8, font: regularFont });
+    currentPage.drawText(op.credit > 0 ? fmtSum(op.credit) : '—', { x: colX.credit + 5, y: cursorY, size: 8, font: regularFont });
     cursorY -= rowH;
+  }
+
+  if (operations.length === 0) {
+    currentPage.drawText('Операций за период не найдено', { x: marginX + 10, y: cursorY, size: 8.5, font: regularFont, color: rgb(0.5, 0.5, 0.5) });
+    cursorY -= rowH;
+  }
+
+  // Проверка места под итог и подписи
+  if (cursorY < 130) {
+    currentPage = pdfDoc.addPage([595.28, 841.89]);
+    cursorY = height - 40;
   }
 
   // Линия итога
   cursorY -= 8;
-  page.drawLine({
+  currentPage.drawLine({
     start: { x: marginX, y: cursorY + 12 },
     end: { x: width - marginX, y: cursorY + 12 },
     thickness: 1,
@@ -338,7 +434,7 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
 
   const finalDebt = totalOrders - totalPayments;
 
-  page.drawText(`Всего отгружено: ${fmtSum(totalOrders)}   ·   Всего оплачено: ${fmtSum(totalPayments)}`, {
+  currentPage.drawText(`Всего отгружено: ${fmtSum(totalOrders)}   ·   Всего оплачено: ${fmtSum(totalPayments)}`, {
     x: marginX,
     y: cursorY,
     size: 9,
@@ -347,10 +443,10 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
 
   cursorY -= 16;
   const debtStatus = finalDebt > 0
-    ? `Задолженность в пользу ${COMPANY_INFO.name}: ${fmtSum(finalDebt)}`
+    ? `Задолженность в пользу ${company.name}: ${fmtSum(finalDebt)}`
     : (finalDebt < 0 ? `Переплата в пользу Покупателя: ${fmtSum(Math.abs(finalDebt))}` : 'Задолженность отсутствует (сальдо 0 сум).');
 
-  page.drawText(debtStatus, {
+  currentPage.drawText(debtStatus, {
     x: marginX,
     y: cursorY,
     size: 10,
@@ -361,15 +457,33 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   // Подписи
   cursorY -= 50;
   const colW = (width - marginX * 2 - 40) / 2;
-  page.drawText('От ООО «AKM HOLDINGS INC»:', { x: marginX, y: cursorY, size: 9, font: boldFont });
-  page.drawText('Главный бухгалтер: ___________________', { x: marginX, y: cursorY - 18, size: 8.5, font: regularFont });
-  page.drawText('М.П.', { x: marginX + 160, y: cursorY - 40, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
+  currentPage.drawText(`От ${company.name}:`, { x: marginX, y: cursorY, size: 9, font: boldFont });
+  currentPage.drawText('Главный бухгалтер: ___________________', { x: marginX, y: cursorY - 18, size: 8.5, font: regularFont });
+  currentPage.drawText('М.П.', { x: marginX + 160, y: cursorY - 40, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
 
   const rightX = marginX + colW + 40;
-  page.drawText(`От «${market.name}»:`, { x: rightX, y: cursorY, size: 9, font: boldFont });
-  page.drawText('Главный бухгалтер: ___________________', { x: rightX, y: cursorY - 18, size: 8.5, font: regularFont });
-  page.drawText('М.П.', { x: rightX + 160, y: cursorY - 40, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
+  currentPage.drawText(`От «${market.name}»:`, { x: rightX, y: cursorY, size: 9, font: boldFont });
+  currentPage.drawText('Главный бухгалтер: ___________________', { x: rightX, y: cursorY - 18, size: 8.5, font: regularFont });
+  currentPage.drawText('М.П.', { x: rightX + 160, y: cursorY - 40, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
+
+  // Номера страниц
+  const totalReconPages = pdfDoc.getPageCount();
+  if (totalReconPages > 1) {
+    for (let pIdx = 0; pIdx < totalReconPages; pIdx++) {
+      const p = pdfDoc.getPage(pIdx);
+      const str = `Страница ${pIdx + 1} из ${totalReconPages}`;
+      const strW = regularFont.widthOfTextAtSize(str, 8);
+      p.drawText(str, {
+        x: width - marginX - strW,
+        y: 20,
+        size: 8,
+        font: regularFont,
+        color: rgb(0.5, 0.5, 0.5),
+      });
+    }
+  }
 
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
 }
+

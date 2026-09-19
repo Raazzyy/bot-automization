@@ -261,9 +261,16 @@ async function moiZakazy(args: { skolko?: number }, ctx: ToolContext): Promise<T
   const out: string[] = [];
   for (const o of rows) {
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, o.id));
-    const composition = items
-      .map((i) => `${i.productName} — ${fmtAmount(i.amount)}${i.measurementName ? ' ' + i.measurementName : ''}`)
-      .join('; ');
+    const itemNames: string[] = [];
+    for (const i of items) {
+      let name = i.productName;
+      if (!name && i.productId) {
+        const [p] = await db.select({ name: products.name }).from(products).where(eq(products.id, i.productId)).limit(1);
+        if (p?.name) name = p.name;
+      }
+      itemNames.push(`${name || ('Товар #' + (i.productId ?? ''))} — ${fmtAmount(i.amount)}${i.measurementName ? ' ' + i.measurementName : ''}`);
+    }
+    const composition = itemNames.join('; ');
     out.push(
       `Заказ №${o.id} от ${fmtDate(o.createdDate)}, ${fmtSum(o.totalPrice)}, статус: ${STATUS_RU[o.status ?? ''] ?? o.status}`
       + (composition ? `\n  состав: ${composition}` : ''),

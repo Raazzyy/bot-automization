@@ -97,7 +97,25 @@ export async function send(api: Api, o: SendOptions): Promise<SendOutcome> {
       .where(eq(outbox.dedupeKey, o.dedupeKey));
 
     return { sent: true, messageId: msg.message_id };
-  } catch (e) {
+  } catch (e: any) {
+    const migrateTo = e?.parameters?.migrate_to_chat_id;
+    if (migrateTo) {
+      log.warn(`Чат ${o.chatId} преобразован Telegram в супергруппу ${migrateTo}. Повторная отправка...`);
+      try {
+        const retryMsg = await api.sendMessage(migrateTo, o.text, {
+          parse_mode: 'HTML',
+          link_preview_options: { is_disabled: true },
+          ...(o.keyboard ? { reply_markup: o.keyboard } : {}),
+        });
+        await db.update(outbox)
+          .set({ status: 'sent', sentAt: new Date(), chatId: migrateTo })
+          .where(eq(outbox.dedupeKey, o.dedupeKey));
+        return { sent: true, messageId: retryMsg.message_id };
+      } catch (retryErr: any) {
+        log.error(`Повторная отправка в супергруппу ${migrateTo} не удалась:`, retryErr.message);
+      }
+    }
+
     const detail = (e as Error).message;
     await db.update(outbox)
       .set({ status: 'failed', error: detail })

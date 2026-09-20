@@ -9,6 +9,7 @@ import { send } from './send.js';
 import { fmtSum, fmtDate, fmtAmount, fmtNum, todayTashkent } from '../lib/money.js';
 import { log } from '../lib/logger.js';
 import { generateWaybillPdf } from '../lib/pdf-waybill.js';
+import { getCompanyProfile } from '../lib/settings.js';
 
 /** Статусы, при которых заказ подлежит выставлению ЭСФ */
 const BILLABLE = ['delivered', 'given'] as const;
@@ -225,11 +226,12 @@ export async function handleEsfCallback(
   if (action === 'pdf') {
     try {
       const pdfBuf = await generateWaybillPdf(orderId);
-      const staffChat = config.ACCOUNTANT_CHAT_ID || '-5319232815';
+      const company = await getCompanyProfile();
+      const staffChat = config.ACCOUNTANT_CHAT_ID || config.ASSIST_CHAT_ID;
       await api.sendDocument(
         staffChat,
         new InputFile(pdfBuf, `Накладная_№${orderId}.pdf`),
-        { caption: `📄 Официальная товарная накладная по заказу №${orderId} (ООО «AKM HOLDINGS INC»)` },
+        { caption: `📄 Официальная товарная накладная по заказу №${orderId} (${company.name})` },
       );
       return { answer: 'Накладная PDF отправлена в чат!' };
     } catch (err) {

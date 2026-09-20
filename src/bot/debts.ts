@@ -11,6 +11,7 @@ import { send } from './send.js';
 import { fmtSum, fmtDate, fmtNum, todayTashkent, daysAgo, toSum } from '../lib/money.js';
 import { log } from '../lib/logger.js';
 import { generateReconciliationPdf } from '../lib/pdf-waybill.js';
+import { getCompanyProfile } from '../lib/settings.js';
 
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -473,12 +474,13 @@ export async function handleDebtCallback(
       const [m] = await db.select().from(markets).where(eq(markets.id, marketId)).limit(1);
       const mName = m?.name ?? `Точка_${marketId}`;
       const pdfBuf = await generateReconciliationPdf(marketId);
+      const company = await getCompanyProfile();
 
-      const staffChat = config.FINANCE_CHAT_ID || config.ACCOUNTANT_CHAT_ID || '-5319232815';
+      const staffChat = config.FINANCE_CHAT_ID || config.ACCOUNTANT_CHAT_ID || config.ASSIST_CHAT_ID;
       await api.sendDocument(
         staffChat,
         new InputFile(pdfBuf, `Акт_сверки_${mName.replace(/[^\wа-яё]/gi, '_')}.pdf`),
-        { caption: `📄 Официальный акт сверки расчетов с «${mName}» (ООО «AKM HOLDINGS INC»)` },
+        { caption: `📄 Официальный акт сверки расчетов с «${mName}» (${company.name})` },
       );
       return { answer: `Акт сверки для «${mName}» отправлен в чат!` };
     } catch (err) {

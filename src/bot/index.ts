@@ -9,7 +9,7 @@ import { send, businessChatAllowed } from './send.js';
 import { runAgent } from '../ai/agent.js';
 import { sendAttachments } from './media.js';
 import { canSendToClients, isAssist } from '../config.js';
-import { isBotEnabled, getActiveMode } from '../lib/settings.js';
+import { isBotEnabled, getActiveMode, getAllSettings } from '../lib/settings.js';
 import { handleIncoming, handleAssistCallback, relayStaffReply } from './assist.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
 import { downloadTelegramFile, transcribeAudio } from '../ai/media-ai.js';
@@ -406,13 +406,16 @@ export function createBot(): Bot {
       return;
     }
 
+    const s = await getAllSettings();
+    const brand = s.company_brand || s.company_name || 'AKM Holdings';
+
     await ctx.reply(
       isAssist
-        ? 'Здравствуйте! Это AKM Holdings.\n\n'
+        ? `Здравствуйте! Это ${brand}.\n\n`
           + 'Напишите, что вас интересует: наличие товара, цены, заказ. '
           + 'Можно прислать фото или документ.\n\n'
           + 'Вам ответит наш сотрудник.'
-        : 'Здравствуйте! Это бот AKM Holdings.\n\n'
+        : `Здравствуйте! Это официальный бот ${brand}.\n\n`
           + 'Пока идёт настройка — доступна проверка связи.\n'
           + 'Если вы сотрудник, добавьте бота в группу и напишите /chatid.',
     );
@@ -432,6 +435,9 @@ export function createBot(): Bot {
 
   bot.command('status', async (ctx) => {
     const db = await getDb();
+    const s = await getAllSettings();
+    const brand = s.company_brand || s.company_name || 'AKM Holdings';
+
     const [q] = await db
       .select({
         total: sql<number>`count(*)::int`,
@@ -447,7 +453,7 @@ export function createBot(): Bot {
     const dormant = await findDormantMarkets();
 
     await ctx.reply(
-      `<b>Состояние системы AKM Holdings</b>\n\n`
+      `<b>Состояние системы ${brand}</b>\n\n`
       + `Режим: <b>${config.MODE}</b>\n`
       + `Канал A: ${conn ? (conn.isEnabled ? `подключён @${conn.ownerUsername ?? conn.ownerUserId}` : 'отключён') : 'не подключён'}\n\n`
       + `📑 <b>ЭСФ (M1):</b> всего ${q?.total ?? 0} · выставлено: ${q?.issued ?? 0} · в работе: ${q?.posted ?? 0}\n`

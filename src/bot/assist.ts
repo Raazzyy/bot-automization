@@ -14,6 +14,7 @@ import { log } from '../lib/logger.js';
 import { fmtAmount, fmtSum, todayTashkent } from '../lib/money.js';
 import { generateWaybillPdf, generateReconciliationPdf } from '../lib/pdf-waybill.js';
 import { matchOrderEntitiesToCatalog, type EnrichedEntity } from '../ai/catalog-match.js';
+import { getCompanyProfile } from '../lib/settings.js';
 
 /**
  * Полуавтомат (Умный ассистент).
@@ -546,11 +547,12 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
           .replace(/[^\wа-яёА-ЯЁ0-9_-]/gi, '');
         const fileName = `Накладная_${safeMarket}_№${targetOrder.id}.pdf`;
 
+        const company = await getCompanyProfile();
         await api.sendDocument(
           r.chatId,
           new InputFile(pdfBuf, fileName),
           {
-            caption: `📄 Товарная накладная к заказу №${targetOrder.id} («${targetOrder.marketName}»)\nПоставщик: ООО «AKM HOLDINGS INC»`,
+            caption: `📄 Товарная накладная к заказу №${targetOrder.id} («${targetOrder.marketName}»)\nПоставщик: ${company.name}`,
             ...(r.businessConnectionId ? { business_connection_id: r.businessConnectionId } : {}),
           },
         );
@@ -664,11 +666,12 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
           .replace(/[^\wа-яёА-ЯЁ0-9_-]/gi, '');
         const actFileName = `Акт_сверки_${safeActMarket}.pdf`;
 
+        const company = await getCompanyProfile();
         await api.sendDocument(
           r.chatId,
           new InputFile(pdfBuf, actFileName),
           {
-            caption: `📄 Официальный акт сверки взаиморасчётов с «${mName}»\nПоставщик: ООО «AKM HOLDINGS INC»`,
+            caption: `📄 Официальный акт сверки взаиморасчётов с «${mName}»\nПоставщик: ${company.name}`,
             ...(r.businessConnectionId ? { business_connection_id: r.businessConnectionId } : {}),
           },
         );
@@ -963,11 +966,12 @@ export async function handleAssistCallback(
       const pdfBuf = await generateWaybillPdf(targetOrder.id);
       const staffChat = config.ASSIST_CHAT_ID || config.MANAGER_CHAT_ID || '-5319232815';
 
+      const company = await getCompanyProfile();
       await api.sendDocument(
         staffChat,
         new InputFile(pdfBuf, `Накладная_№${targetOrder.id}.pdf`),
         {
-          caption: `📄 Официальная товарная накладная к заказу №${targetOrder.id} (ООО «AKM HOLDINGS INC»)`,
+          caption: `📄 Официальная товарная накладная к заказу №${targetOrder.id} (${company.name})`,
           reply_to_message_id: r.cardMessageId ?? undefined,
         },
       );

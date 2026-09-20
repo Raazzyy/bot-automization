@@ -45,6 +45,8 @@ const app = {
     this.activeTab = tabId;
     window.location.hash = tabId;
 
+    this.closeMobileMenu();
+
     document.querySelectorAll('.nav-item').forEach((b) => {
       b.classList.toggle('active', b.getAttribute('data-tab') === tabId);
     });
@@ -75,9 +77,96 @@ const app = {
     if (tabId === 'tab-sleepers') this.loadSleepers();
   },
 
+  // ─────────── 1.1 Мобильное меню ───────────
+
+  openMobileMenu() {
+    const sidebar = document.getElementById('appSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.add('open');
+    if (overlay) overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  },
+
+  closeMobileMenu() {
+    const sidebar = document.getElementById('appSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  },
+
+  toggleMobileMenu() {
+    const sidebar = document.getElementById('appSidebar');
+    if (sidebar && sidebar.classList.contains('open')) {
+      this.closeMobileMenu();
+    } else {
+      this.openMobileMenu();
+    }
+  },
+
+  // ─────────── 1.2 Шаблоны и Предпросмотр ───────────
+
+  appendTemplateToKnowledgeBase(text) {
+    const kb = document.getElementById('cfgKnowledgeBase');
+    if (!kb) return;
+    const current = kb.value.trim();
+    if (current.includes(text.substring(0, 30))) {
+      this.showToast('Этот шаблон уже присутствует в базе знаний', 'info');
+      return;
+    }
+    kb.value = current ? current + '\n\n' + text : text;
+    kb.focus();
+    this.showToast('Шаблон добавлен в Базу знаний', 'success');
+  },
+
+  appendRuleToCustomRules(text) {
+    const cr = document.getElementById('cfgCustomRules');
+    if (!cr) return;
+    const current = cr.value.trim();
+    if (current.includes(text.substring(0, 20))) {
+      this.showToast('Это правило уже добавлено', 'info');
+      return;
+    }
+    cr.value = current ? current + '\n' + text : text;
+    cr.focus();
+    this.showToast('Правило добавлено в Tone-of-Voice', 'success');
+  },
+
+  updateGreetingPreview() {
+    const managerName = document.getElementById('cfgManagerName')?.value?.trim() || 'Шохрух';
+    const companyBrand = document.getElementById('cfgCompanyBrand')?.value?.trim() || 'AKM Distribution';
+    const companyName = document.getElementById('cfgCompanyName')?.value?.trim() || 'ООО «AKM HOLDINGS INC»';
+    const greetingRu = document.getElementById('cfgGreetingRu')?.value?.trim() ||
+      'Здравствуйте! Меня зовут {manager_name}, компания {company_name}. Чем могу помочь?';
+    const greetingUz = document.getElementById('cfgGreetingUz')?.value?.trim() ||
+      'Ассалому алейкум! Мен {manager_name}, {company_name} компаниясидан. Қандай ёрдам бера оламан?';
+
+    const renderText = (template) => {
+      return template
+        .replace(/\{manager_name\}/g, managerName)
+        .replace(/\{company_name\}/g, companyName)
+        .replace(/\{brand_name\}/g, companyBrand);
+    };
+
+    const senderRu = document.getElementById('previewSenderRu');
+    const senderUz = document.getElementById('previewSenderUz');
+    const textRu = document.getElementById('previewGreetingRuText');
+    const textUz = document.getElementById('previewGreetingUzText');
+
+    if (senderRu) senderRu.textContent = `${managerName} • ${companyBrand}`;
+    if (senderUz) senderUz.textContent = `${managerName} • ${companyBrand}`;
+    if (textRu) textRu.textContent = renderText(greetingRu);
+    if (textUz) textUz.textContent = renderText(greetingUz);
+  },
+
   // ─────────── 2. Привязка событий ───────────
 
   bindEvents() {
+    // Мобильный гамбургер и закрытие шторки
+    document.getElementById('btnToggleMobileMenu')?.addEventListener('click', () => this.toggleMobileMenu());
+    document.getElementById('btnCloseSidebar')?.addEventListener('click', () => this.closeMobileMenu());
+    document.getElementById('sidebarOverlay')?.addEventListener('click', () => this.closeMobileMenu());
+
     // Тумблер ВКЛ/ВЫКЛ
     document.getElementById('btnToggleBot').addEventListener('click', () => this.toggleBot());
 
@@ -93,6 +182,36 @@ const app = {
     document.getElementById('formBehavior').addEventListener('submit', (e) => {
       e.preventDefault();
       this.saveBehaviorSettings();
+    });
+
+    // Быстрые шаблоны базы знаний
+    document.getElementById('chipKbDelivery')?.addEventListener('click', () => {
+      this.appendTemplateToKnowledgeBase('🚚 УСЛОВИЯ ДОСТАВКИ:\n• Бесплатная доставка при заказе от 500 000 сум по Ташкенту.\n• Доставка на следующий рабочий день с 09:00 до 18:00.\n• При срочном заказе день-в-день доставка платная через Яндекс Доставку.');
+    });
+    document.getElementById('chipKbPayment')?.addEventListener('click', () => {
+      this.appendTemplateToKnowledgeBase('💳 УСЛОВИЯ ОПЛАТЫ:\n• Безналичный расчет (перечисление по договору).\n• Оплата по факту доставки водителю-экспедитору.\n• Отсрочка платежа до 14 календарных дней предоставляется постоянным клиентам без просрочек.');
+    });
+    document.getElementById('chipKbSchedule')?.addEventListener('click', () => {
+      this.appendTemplateToKnowledgeBase('📦 ГРАФИК ОТГРУЗОК И САМОВЫВОЗ:\n• Заявки принимаются ежедневно до 17:00.\n• Самовывоз со склада: Пн-Сб с 09:00 до 17:30.\n• Адрес склада: ул. Сайхун 170А/16.');
+    });
+    document.getElementById('chipKbContacts')?.addEventListener('click', () => {
+      this.appendTemplateToKnowledgeBase('☎️ КОНТАКТЫ И ПОДДЕРЖКА:\n• Дежурный менеджер по заказам: +998 90 1234567\n• Бухгалтерия и сверка актов: +998 99 9255955\n• Горячая линия склада: +998 71 2000000');
+    });
+
+    // Быстрые правила Tone-of-Voice
+    document.getElementById('chipRulePrice')?.addEventListener('click', () => {
+      this.appendRuleToCustomRules('• Строго придерживаться цен из официального каталога. Самовольные скидки категорически запрещены.');
+    });
+    document.getElementById('chipRuleDiscount')?.addEventListener('click', () => {
+      this.appendRuleToCustomRules('• При запросе скидки или индивидуальных условий вежливо отвечать: "Я передал ваш запрос старшему менеджеру, мы свяжемся с вами в течение часа".');
+    });
+    document.getElementById('chipRulePolite')?.addEventListener('click', () => {
+      this.appendRuleToCustomRules('• Общаться уважительно и профессионально. Всегда уточнять объемы и предлагать сопутствующие товары.');
+    });
+
+    // Интерактивный предпросмотр приветствия
+    ['cfgManagerName', 'cfgCompanyBrand', 'cfgCompanyName', 'cfgGreetingRu', 'cfgGreetingUz'].forEach((id) => {
+      document.getElementById(id)?.addEventListener('input', () => this.updateGreetingPreview());
     });
 
     // Форма White-Label
@@ -194,8 +313,8 @@ const app = {
         document.getElementById('modeSelect').value = data.mode;
       }
 
-      if (data.company_name) {
-        document.getElementById('sideBrandName').textContent = data.company_name;
+      if (data.company_brand || data.company_name) {
+        document.getElementById('sideBrandName').textContent = data.company_brand || data.company_name;
       }
       if (data.manager_name) {
         document.getElementById('simManagerName').textContent = `${data.manager_name} (AI Менеджер)`;
@@ -299,15 +418,9 @@ const app = {
             <td><span class="status-tag status-${this.getStatusClass(o.status)}">${o.status}</span></td>
             <td>${o.created_by_bot ? '<span class="badge-sub">Telegram Bot</span>' : 'Linko SFA'}</td>
             <td>
-              <div style="display:flex; gap:6px;">
-                <button class="btn-sm-pdf" onclick="event.stopPropagation(); app.openOrderModal(${o.id})">
-                  Состав
-                </button>
-                <a href="/api/orders/${o.id}/pdf" target="_blank" class="btn-sm-pdf" onclick="event.stopPropagation()">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                  PDF
-                </a>
-              </div>
+              <button class="btn-icon" title="Накладная PDF" onclick="event.stopPropagation(); app.downloadInvoicePdf(${o.id})">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              </button>
             </td>
           </tr>
         `).join('');
@@ -334,18 +447,26 @@ const app = {
       document.getElementById('cfgGreetingUz').value = data.greeting_uz || '';
 
       // White-Label
+      document.getElementById('cfgCompanyBrand').value = data.company_brand || '';
       document.getElementById('cfgCompanyName').value = data.company_name || '';
       document.getElementById('cfgCompanyInn').value = data.company_inn || '';
       document.getElementById('cfgCompanyMfo').value = data.company_mfo || '';
       document.getElementById('cfgCompanyAccount').value = data.company_account || '';
       document.getElementById('cfgCompanyBank').value = data.company_bank || '';
       document.getElementById('cfgCompanyPhone').value = data.company_phone || '';
+      document.getElementById('cfgManagerPhone').value = data.manager_phone || '';
       document.getElementById('cfgCompanyAddress').value = data.company_address || '';
       document.getElementById('cfgLinkoUrl').value = data.linko_base_url || '';
+
+      if (data.company_brand || data.company_name) {
+        document.getElementById('sideBrandName').textContent = data.company_brand || data.company_name;
+      }
 
       if (data.gemini_model) {
         document.getElementById('cfgGeminiModel').value = data.gemini_model;
       }
+
+      this.updateGreetingPreview();
     } catch (e) {
       console.error('Ошибка загрузки настроек:', e);
     }
@@ -361,9 +482,10 @@ const app = {
       const data = await res.json();
       if (data.ok) {
         this.showToast('Настройки сохранены', 'success');
-        if (patch.company_name) {
-          document.getElementById('sideBrandName').textContent = patch.company_name;
+        if (patch.company_brand || patch.company_name) {
+          document.getElementById('sideBrandName').textContent = patch.company_brand || patch.company_name;
         }
+        this.updateGreetingPreview();
       }
     } catch (e) {
       this.showToast('Ошибка сохранения: ' + e.message, 'error');
@@ -384,12 +506,14 @@ const app = {
 
   async saveWhiteLabelSettings() {
     const patch = {
+      company_brand: document.getElementById('cfgCompanyBrand').value.trim(),
       company_name: document.getElementById('cfgCompanyName').value.trim(),
       company_inn: document.getElementById('cfgCompanyInn').value.trim(),
       company_mfo: document.getElementById('cfgCompanyMfo').value.trim(),
       company_account: document.getElementById('cfgCompanyAccount').value.trim(),
       company_bank: document.getElementById('cfgCompanyBank').value.trim(),
       company_phone: document.getElementById('cfgCompanyPhone').value.trim(),
+      manager_phone: document.getElementById('cfgManagerPhone').value.trim(),
       company_address: document.getElementById('cfgCompanyAddress').value.trim(),
       linko_base_url: document.getElementById('cfgLinkoUrl').value.trim(),
       gemini_model: document.getElementById('cfgGeminiModel').value,

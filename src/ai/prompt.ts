@@ -229,11 +229,18 @@ export async function getSystemPromptA(customSettings?: AppSettings): Promise<st
   const manager = s.manager_name || 'Шохрух';
   const role = s.manager_role || 'ведущий менеджер отдела продаж';
   const company = s.company_name || 'ООО «AKM HOLDINGS INC»';
-  const greetingRu = (s.greeting_ru || '').replace('{manager_name}', manager).replace('{company_name}', company);
-  const greetingUz = (s.greeting_uz || '').replace('{manager_name}', manager).replace('{company_name}', company);
+  const brand = s.company_brand || s.company_name || 'AKM Distribution';
+  const greetingRu = (s.greeting_ru || '')
+    .replace(/{manager_name}/g, manager)
+    .replace(/{company_name}/g, company)
+    .replace(/{brand_name}/g, brand);
+  const greetingUz = (s.greeting_uz || '')
+    .replace(/{manager_name}/g, manager)
+    .replace(/{company_name}/g, company)
+    .replace(/{brand_name}/g, brand);
 
   let prompt = `
-Ты — ${manager}, ${role} компании ${company}.
+Ты — ${manager}, ${role} компании ${brand} (${company}).
 Твои клиенты — рестораны, кафе, маркеты и закупщики HoReCa.
 
 Твои сообщения приходят клиенту в Telegram от официального рабочего аккаунта компании, поэтому ты общаешься в точности как живой, вежливый и опытный оптовый менеджер ${manager} из реальных переписок компании.
@@ -276,6 +283,35 @@ ${COMMON_RULES}
   }
 
   prompt += '\n\nЕсли тебе нечего ответить по инструментам — скажи, что уточнишь у коллег/бухгалтерии, и вызови pozvat_menedzhera.';
+  return prompt.trim();
+}
+
+/**
+ * Динамическое формирование системного промпта для Канала B (прямой бот)
+ */
+export async function getSystemPromptB(customSettings?: AppSettings): Promise<string> {
+  const s = customSettings ?? await getAllSettings();
+  const brand = s.company_brand || s.company_name || 'AKM Distribution';
+  let prompt = `
+Ты — официальный бот компании ${brand}, оптового поставщика продуктов питания.
+Клиент общается с тобой в отдельном чате бота Telegram и понимает, что это бот.
+
+КАК ПИСАТЬ:
+- Понятно и по делу. Можно структурой: короткие списки уместны.
+- Цены и позиции — столбиком, если их несколько.
+- Без лишней вежливости, но дружелюбно.
+
+${COMMON_RULES}
+`;
+
+  if (s.knowledge_base?.trim()) {
+    prompt += `\n\nБАЗА ЗНАНИЙ И РЕГЛАМЕНТЫ КОМПАНИИ:\n${s.knowledge_base.trim()}`;
+  }
+
+  if (s.custom_rules?.trim()) {
+    prompt += `\n\nДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА И ПОВЕДЕНИЕ:\n${s.custom_rules.trim()}`;
+  }
+
   return prompt.trim();
 }
 

@@ -8,6 +8,7 @@ export interface AppSettings {
   bot_enabled: boolean;
   mode: 'live' | 'assist' | 'shadow' | 'dry_run';
   company_name: string;
+  company_brand: string;
   company_inn: string;
   company_mfo: string;
   company_bank: string;
@@ -16,6 +17,7 @@ export interface AppSettings {
   company_phone: string;
   manager_name: string;
   manager_role: string;
+  manager_phone: string;
   custom_rules: string;
   knowledge_base: string;
   greeting_ru: string;
@@ -29,6 +31,7 @@ export interface AppSettings {
 
 export interface CompanyProfile {
   name: string;
+  brand: string;
   inn: string;
   mfo: string;
   account: string;
@@ -41,6 +44,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   bot_enabled: true,
   mode: config.MODE,
   company_name: 'ООО «AKM HOLDINGS INC»',
+  company_brand: 'AKM Distribution',
   company_inn: '308057864',
   company_mfo: '00440',
   company_bank: 'АКБ "УЗСАНОАТКУРИЛИШБАНКИ"',
@@ -49,6 +53,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   company_phone: '+998 99 9255955',
   manager_name: 'Шохрух',
   manager_role: 'ведущий менеджер отдела продаж',
+  manager_phone: '+998 99 9255955',
   custom_rules: '',
   knowledge_base: `Доставка: осуществляем на следующий день после подтверждения заказа.
 Минимальный заказ: от 500 000 сум по Ташкенту.
@@ -86,6 +91,7 @@ export async function getAllSettings(): Promise<AppSettings> {
       bot_enabled: map.has('bot_enabled') ? map.get('bot_enabled') === 'true' : DEFAULT_SETTINGS.bot_enabled,
       mode: (map.get('mode') as AppSettings['mode']) || DEFAULT_SETTINGS.mode,
       company_name: map.get('company_name') || DEFAULT_SETTINGS.company_name,
+      company_brand: map.get('company_brand') || DEFAULT_SETTINGS.company_brand,
       company_inn: map.get('company_inn') || DEFAULT_SETTINGS.company_inn,
       company_mfo: map.get('company_mfo') || DEFAULT_SETTINGS.company_mfo,
       company_bank: map.get('company_bank') || DEFAULT_SETTINGS.company_bank,
@@ -94,6 +100,7 @@ export async function getAllSettings(): Promise<AppSettings> {
       company_phone: map.get('company_phone') || DEFAULT_SETTINGS.company_phone,
       manager_name: map.get('manager_name') || DEFAULT_SETTINGS.manager_name,
       manager_role: map.get('manager_role') || DEFAULT_SETTINGS.manager_role,
+      manager_phone: map.get('manager_phone') || DEFAULT_SETTINGS.manager_phone,
       custom_rules: map.has('custom_rules') ? map.get('custom_rules')! : DEFAULT_SETTINGS.custom_rules,
       knowledge_base: map.has('knowledge_base') ? map.get('knowledge_base')! : DEFAULT_SETTINGS.knowledge_base,
       greeting_ru: map.get('greeting_ru') || DEFAULT_SETTINGS.greeting_ru,
@@ -159,6 +166,7 @@ export async function getCompanyProfile(): Promise<CompanyProfile> {
   const s = await getAllSettings();
   return {
     name: s.company_name,
+    brand: s.company_brand || s.company_name,
     inn: s.company_inn,
     mfo: s.company_mfo,
     account: s.company_account,

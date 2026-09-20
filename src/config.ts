@@ -63,6 +63,12 @@ const schema = z.object({
   TZ_OFFSET_HOURS: z.coerce.number().default(5), // Ташкент UTC+5
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
+  // Порт для Health Check и веб-панели (на Replit/Render задаётся автоматически через $PORT)
+  PORT: z.coerce.number().default(3000),
+
+  // Секретный ключ сессий
+  SESSION_SECRET: z.string().default(''),
+
   // Отключение Telegram Polling (для тестирования локалки без конфликта с Replit)
   DISABLE_BOT_POLLING: z
     .string()

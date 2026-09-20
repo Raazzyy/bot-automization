@@ -44,21 +44,26 @@
 В Replit слева — раздел **Secrets** (замок). Это НЕ файл `.env`, файл на сервер
 не кладём. Добавить по одному:
 
-| Ключ | Значение |
-|---|---|
-| `MODE` | `assist` |
-| `BOT_TOKEN` | токен бота |
-| `GEMINI_API_KEY` | ключ Gemini |
-| `GEMINI_MODEL` | `gemini-3.5-flash-lite` |
-| `DATABASE_URL` | строка от Neon из шага 2 |
-| `ASSIST_CHAT_ID` | ID группы обращений |
-| `ACCOUNTANT_CHAT_ID` | ID группы бухгалтерии (если нужен M1) |
-| `TZ_OFFSET_HOURS` | `5` |
-| `DISABLE_BOT_POLLING` | `false` (поставьте `true`, если нужно тестировать бота на ПК без выключения Replit) |
+| Ключ | Значение | Описание |
+|---|---|---|
+| `MODE` | `assist` | Режим полуавтомата (карточки заказов в группу) |
+| `BOT_TOKEN` | `8881269634:AAF62-gfNuVRXBGJ0--8qo1KlRsjW89IvBc` | Токен Telegram бота |
+| `LINKO_BASE_URL` | `https://akm.linko.uz` | Адрес сервера Linko |
+| `LINKO_TOKEN` | `5f4e3881509de2902d003773c2387fdf854ae1b5` | Рабочий токен External API Linko |
+| `GEMINI_API_KEY` | `AQ.Ab8RN6KbZNoLlUDm7HUEnw076152MolfAJ8J_63O7V8g3-s4Iw` | Ключ нейросети Gemini |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Модель LLM |
+| `DATABASE_URL` | `pglite://.data/akm` *(или Neon)* | База данных |
+| `SESSION_SECRET` | `b6GvhAHEk9HVhvrc//KWRbOAC/+H6XnKDzUIzBMDp4o+gGJO//r+ltV6FztL1rp1wfZa0dxggsffXYVkKVNKng==` | Секретный ключ сессий |
+| `ASSIST_CHAT_ID` | `-1004435807678` | ID группы обращений (супергруппа) |
+| `ACCOUNTANT_CHAT_ID` | `-1004435807678` | ID группы бухгалтерии (счета/накладные) |
+| `FINANCE_CHAT_ID` | `-1004435807678` | ID группы финансов (акты/дебиторка) |
+| `MANAGER_CHAT_ID` | `-1004435807678` | ID группы торговых представителей |
+| `SYNC_INTERVAL_SEC` | `900` | Интервал синхронизации Linko (сек) |
+| `TZ_OFFSET_HOURS` | `5` | Часовой пояс (Ташкент UTC+5) |
+| `LOG_LEVEL` | `info` | Уровень логов |
+| `DISABLE_BOT_POLLING` | `false` | Поставьте `true`, если нужно тестировать бота на ПК без выключения Replit |
 
-`LINKO_TOKEN` пока можно не добавлять — на полуавтомат он не влияет.
-Но без него в логах будут ошибки 403; чтобы их убрать, можно временно
-поставить `SYNC_INTERVAL_SEC` = `3600`.
+> **Обратите внимание на ID группы:** обычная группа `-5319232815` была автоматически преобразована Telegram в супергруппу **`-1004435807678`**. В Telegram API все запросы должны идти именно на `-1004435807678`.
 
 ---
 

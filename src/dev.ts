@@ -103,14 +103,14 @@ async function main() {
     log.warn('BOT_TOKEN не задан — работает только синхронизация с Linko');
   }
 
-  // Первый прогон сразу, дальше по расписанию
-  await syncTick(bot);
+  // Запуск веб-панели управления и API (White-Label CRM, документы, AI симулятор)
+  const port = config.PORT || Number(process.env.PORT) || 3000;
+  const adminServer = startAdminServer(port);
+
+  // Первый прогон синхронизации сразу в фоне, дальше по расписанию
+  void syncTick(bot);
   const timer = setInterval(() => void syncTick(bot), config.SYNC_INTERVAL_SEC * 1000);
   log.info(`Синхронизация каждые ${config.SYNC_INTERVAL_SEC} с`);
-
-  // Запуск веб-панели управления и API (White-Label CRM, документы, AI симулятор)
-  const port = Number(process.env.PORT) || 3000;
-  const adminServer = startAdminServer(port);
 
   const stop = async (signal: string) => {
     log.info(`${signal} — останавливаюсь`);

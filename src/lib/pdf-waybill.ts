@@ -271,7 +271,10 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
 export async function generateReconciliationPdf(marketId: number): Promise<Buffer> {
   const db = await getDb();
 
-  const [market] = await db.select().from(markets).where(eq(markets.id, marketId)).limit(1);
+  let [market] = await db.select().from(markets).where(eq(markets.id, marketId)).limit(1);
+  if (!market && marketId < 0) {
+    [market] = await db.select().from(markets).where(eq(markets.id, Math.abs(marketId))).limit(1);
+  }
   if (!market) throw new Error(`Точка #${marketId} не найдена`);
 
   const mOrders = await db

@@ -103,12 +103,13 @@ export async function postNewOrders(api: Api): Promise<number> {
     log.warn('Не удалось архивировать исторические заказы', (e as Error).message);
   }
 
-  // Заказы, созданные СЕГОДНЯ, подлежащие ЭСФ и ещё не попавшие в очередь
+  // Заказы по перечислению, созданные СЕГОДНЯ, подлежащие ЭСФ и ещё не попавшие в очередь
   const fresh = await db
     .select({ id: orders.id })
     .from(orders)
     .leftJoin(esfQueue, eq(esfQueue.orderId, orders.id))
     .where(and(
+      eq(orders.paymentType, 'bank'),
       inArray(orders.status, [...BILLABLE]),
       isNull(esfQueue.orderId),
       sql`${orders.createdDate} >= ${today}`,

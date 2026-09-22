@@ -12,20 +12,18 @@ import {
 import { log } from '../lib/logger.js';
 
 async function main() {
-  console.log('\n=============================================================');
-  console.log('🧠 ЗАПУСК САМООБУЧЕНИЯ ИИ НА РЕАЛЬНЫХ ПЕРЕПИСКАХ TELEGRAM');
-  console.log('=============================================================\n');
+  console.log('Запуск анализа переписок Telegram...');
 
   const defaultExportDir = 'C:\\Users\\raazzyy\\Downloads\\Telegram Desktop\\чаты акм';
   const targetDir = process.env.CHAT_EXPORT_DIR || defaultExportDir;
 
   if (!fs.existsSync(targetDir)) {
-    console.error(`❌ Каталог экспорта переписок не найден: ${targetDir}`);
+    console.error(`Каталог экспорта переписок не найден: ${targetDir}`);
     process.exit(1);
   }
 
   const exportFolders = fs.readdirSync(targetDir).filter((f) => f.startsWith('ChatExport'));
-  console.log(`📁 Найдено ${exportFolders.length} папок с экспортами переписок.`);
+  console.log(`Найдено ${exportFolders.length} папок с экспортами переписок.`);
 
   const allAliases: ExtractedAlias[] = [];
   const allDialogues: GoldenDialogue[] = [];
@@ -33,7 +31,6 @@ async function main() {
   const allInsights: string[] = [];
   let totalMessagesCount = 0;
 
-  // Анализируем репрезентативные чаты (например, первые 6 ключевых заведений)
   const foldersToProcess = exportFolders.slice(0, 6);
 
   for (let i = 0; i < foldersToProcess.length; i++) {
@@ -43,29 +40,26 @@ async function main() {
     if (!fs.existsSync(htmlPath)) continue;
 
     const html = fs.readFileSync(htmlPath, 'utf8');
-
-    // Определяем имя контакта
     const titleMatch = html.match(/<div class="text bold">\s*([\s\S]*?)\s*<\/div>/);
     const clientName = titleMatch?.[1] ? titleMatch[1].replace(/<[^>]+>/g, '').trim() : `Клиент ${i + 1}`;
 
     const parsedMessages = parseTelegramHtmlMessages(html);
     totalMessagesCount += parsedMessages.length;
 
-    console.log(`\n[${i + 1}/${foldersToProcess.length}] 🔍 Анализ диалога с «${clientName}» (${parsedMessages.length} реплик)...`);
+    console.log(`[${i + 1}/${foldersToProcess.length}] Анализ диалога «${clientName}» (${parsedMessages.length} реплик)...`);
 
-    // Берём наиболее насыщенный срез сообщений (до 40-50 реплик)
     const sample = parsedMessages.slice(0, 45);
     if (sample.length < 5) {
-      console.log('   ⏭ Слишком мало сообщений для анализа, пропускаем.');
+      console.log('  Пропуск: недостаточно сообщений для анализа.');
       continue;
     }
 
     try {
       const result = await analyzeDialogueBatch(clientName, sample);
 
-      console.log(`   ✨ Извлечено синонимов: ${result.aliases.length}, диалогов: ${result.dialogues.length}, инсайтов: ${result.insights.length}`);
+      console.log(`  Извлечено синонимов: ${result.aliases.length}, диалогов: ${result.dialogues.length}, инсайтов: ${result.insights.length}`);
       if (result.profile.typicalProducts?.length) {
-        console.log(`   📦 Любимые товары: ${result.profile.typicalProducts.join(', ')}`);
+        console.log(`  Товары: ${result.profile.typicalProducts.join(', ')}`);
       }
 
       allAliases.push(...result.aliases);
@@ -76,11 +70,9 @@ async function main() {
       log.warn(`Ошибка анализа диалога ${clientName}:`, (err as Error).message);
     }
 
-    // Небольшая пауза между запросами к Gemini
     await new Promise((r) => setTimeout(r, 1000));
   }
 
-  // Дедупликация синонимов
   const uniqueAliasesMap = new Map<string, ExtractedAlias>();
   for (const a of allAliases) {
     const key = a.clientPhrase.toLowerCase().trim();
@@ -102,19 +94,17 @@ async function main() {
 
   saveLearnedKnowledge(finalKnowledge);
 
-  console.log('\n=============================================================');
-  console.log('🎉 САМООБУЧЕНИЕ УСПЕШНО ЗАВЕРШЕНО!');
-  console.log('=============================================================');
-  console.log(`• Всего проанализировано сообщений: ${totalMessagesCount}`);
-  console.log(`• Профилей заведений сохранено:     ${finalKnowledge.clientProfiles.length}`);
-  console.log(`• Уникальных сленговых названий:    ${finalKnowledge.extractedAliases.length}`);
-  console.log(`• Золотых диалогов менеджера:       ${finalKnowledge.goldenDialogues.length}`);
-  console.log(`• Бизнес-инсайтов и правил:         ${finalKnowledge.businessInsights.length}`);
-  console.log(`• Файл базы знаний сохранён в:      src/ai/learned-knowledge.json`);
-  console.log('=============================================================\n');
+  console.log('Анализ переписок успешно завершен.');
+  console.log(`- Проанализировано сообщений: ${totalMessagesCount}`);
+  console.log(`- Профилей клиентов:          ${finalKnowledge.clientProfiles.length}`);
+  console.log(`- Сленговых синонимов:        ${finalKnowledge.extractedAliases.length}`);
+  console.log(`- Золотых диалогов:           ${finalKnowledge.goldenDialogues.length}`);
+  console.log(`- Бизнес-инсайтов:            ${finalKnowledge.businessInsights.length}`);
+  console.log(`- База знаний сохранена в:    src/ai/learned-knowledge.json`);
 }
 
 main().catch((e) => {
-  console.error('❌ Ошибка самообучения:', e);
+  console.error('Ошибка самообучения:', e);
   process.exit(1);
 });
+

@@ -1,5 +1,3 @@
-/** Типы ответов Linko External API. Выведены из docs на sfademo.linko.uz/docs */
-
 export interface Envelope<T> {
   results: T[];
   errors: unknown[];
@@ -151,8 +149,6 @@ export interface LinkoUser {
   role?: string | null;
   tm?: string | number | null;
 }
-
-/* ─── Создание заказа (POST sync_order) ─── */
 
 export interface SyncOrderRef {
   linko_id?: number;

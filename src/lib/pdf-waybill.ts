@@ -2,14 +2,11 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { eq, inArray, desc, and } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
 import { orders, orderItems, markets, payments } from '../db/schema.js';
 import { fmtSum, fmtDate, fmtNum, fmtAmount, todayTashkent, toSum } from './money.js';
-import { config } from '../config.js';
-import { log } from './logger.js';
 import { getCompanyProfile } from './settings.js';
-
 
 const COMPANY_INFO = {
   name: 'ООО «AKM HOLDINGS INC»',
@@ -21,7 +18,6 @@ const COMPANY_INFO = {
   phone: '+998 99 9255955',
 };
 
-/** Загрузка шрифтов с поддержкой кириллицы и узбекского языка */
 async function loadFonts(doc: PDFDocument) {
   doc.registerFontkit(fontkit);
 
@@ -42,9 +38,6 @@ async function loadFonts(doc: PDFDocument) {
   return { regularFont, boldFont };
 }
 
-/**
- * Генерация официальной товарной накладной в PDF
- */
 export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
   const db = await getDb();
 
@@ -58,14 +51,12 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
   const pdfDoc = await PDFDocument.create();
   const { regularFont, boldFont } = await loadFonts(pdfDoc);
 
-  // A4: 595.28 x 841.89
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
 
   const marginX = 40;
   let cursorY = height - 40;
 
-  // --- ЗАГОЛОВОК ДОКУМЕНТА ---
   cursorY -= 10;
   const docTitle = `ТОВАРНАЯ НАКЛАДНАЯ № ${Math.abs(o.id)} от ${fmtDate(o.createdDate)}`;
   const titleWidth = boldFont.widthOfTextAtSize(docTitle, 13);
@@ -77,7 +68,6 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
     color: rgb(0.1, 0.1, 0.1),
   });
 
-  // --- РЕКВИЗИТЫ СТОРОН ---
   cursorY -= 22;
   page.drawText(`Поставщик: ${company.name}`, { x: marginX, y: cursorY, size: 9.5, font: boldFont });
   cursorY -= 14;
@@ -101,11 +91,8 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
     font: regularFont,
   });
 
-  // --- ТАБЛИЦА ТОВАРОВ ---
   cursorY -= 20;
 
-  // Колонки таблицы:
-  // № (25) | Наименование (230) | Ед. (35) | Кол-во (50) | Цена (85) | Сумма (90) = 515
   const colX = {
     num: marginX,
     name: marginX + 25,
@@ -149,7 +136,6 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
 
   let currentPage = page;
 
-  // Строки товаров
   for (let i = 0; i < items.length; i++) {
     if (cursorY - rowHeight < 60) {
       currentPage = pdfDoc.addPage([595.28, 841.89]);
@@ -184,13 +170,11 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
     cursorY -= rowHeight;
   }
 
-  // Проверка места под итоги и подписи (нужно ~120 пунктов)
   if (cursorY < 130) {
     currentPage = pdfDoc.addPage([595.28, 841.89]);
     cursorY = height - 40;
   }
 
-  // --- ИТОГИ ---
   cursorY -= 8;
   const discount = Number(o.discountPrice ?? 0);
   if (discount > 0) {
@@ -220,7 +204,6 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
     font: regularFont,
   });
 
-  // --- ПОДПИСИ СТОРОН ---
   cursorY -= 50;
   currentPage.drawLine({
     start: { x: marginX, y: cursorY + 15 },
@@ -231,20 +214,17 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
 
   const colWidth = (width - marginX * 2 - 40) / 2;
 
-  // Поставщик
   currentPage.drawText('Отпустил (Поставщик):', { x: marginX, y: cursorY, size: 9, font: boldFont });
   currentPage.drawText('Экспедитор: __________________________', { x: marginX, y: cursorY - 18, size: 8.5, font: regularFont });
   currentPage.drawText('(подпись / Ф.И.О.)', { x: marginX + 60, y: cursorY - 28, size: 7, font: regularFont, color: rgb(0.5, 0.5, 0.5) });
   currentPage.drawText('М.П.', { x: marginX + 180, y: cursorY - 45, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
 
-  // Покупатель
   const rightX = marginX + colWidth + 40;
   currentPage.drawText('Принял (Покупатель):', { x: rightX, y: cursorY, size: 9, font: boldFont });
   currentPage.drawText('Заказчик: ____________________________', { x: rightX, y: cursorY - 18, size: 8.5, font: regularFont });
   currentPage.drawText('(подпись / Ф.И.О.)', { x: rightX + 60, y: cursorY - 28, size: 7, font: regularFont, color: rgb(0.5, 0.5, 0.5) });
   currentPage.drawText('М.П.', { x: rightX + 180, y: cursorY - 45, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
 
-  // Добавляем нумерацию страниц при наличии более 1 страницы
   const totalWaybillPages = pdfDoc.getPageCount();
   if (totalWaybillPages > 1) {
     for (let pIdx = 0; pIdx < totalWaybillPages; pIdx++) {
@@ -265,9 +245,6 @@ export async function generateWaybillPdf(orderId: number): Promise<Buffer> {
   return Buffer.from(pdfBytes);
 }
 
-/**
- * Генерация официального акта сверки взаимных расчетов в PDF
- */
 export async function generateReconciliationPdf(marketId: number): Promise<Buffer> {
   const db = await getDb();
 
@@ -305,7 +282,6 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   const marginX = 40;
   let cursorY = height - 40;
 
-  // Шапка
   page.drawText(company.name, { x: marginX, y: cursorY, size: 12, font: boldFont, color: rgb(0.08, 0.35, 0.3) });
   cursorY -= 14;
   page.drawText(`ИНН: ${company.inn} · Тел: ${company.phone}`, { x: marginX, y: cursorY, size: 8, font: regularFont });
@@ -322,8 +298,6 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
 
   cursorY -= 20;
 
-  // Таблица операций
-  // Дата (65) | Документ / Операция (200) | Дебет / Отгрузка (120) | Кредит / Оплата (130)
   const colX = {
     date: marginX,
     doc: marginX + 65,
@@ -352,7 +326,6 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   drawReconciliationHeader(page, cursorY);
   cursorY -= rowH;
 
-  // Объединяем операции в единую хронологическую ленту
   interface OperationRow {
     date: string;
     doc: string;
@@ -386,7 +359,6 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
     });
   }
 
-  // Сортировка по дате
   operations.sort((a, b) => a.date.localeCompare(b.date));
 
   let currentPage = page;
@@ -420,13 +392,11 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
     cursorY -= rowH;
   }
 
-  // Проверка места под итог и подписи
   if (cursorY < 130) {
     currentPage = pdfDoc.addPage([595.28, 841.89]);
     cursorY = height - 40;
   }
 
-  // Линия итога
   cursorY -= 8;
   currentPage.drawLine({
     start: { x: marginX, y: cursorY + 12 },
@@ -457,7 +427,6 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
     color: finalDebt > 0 ? rgb(0.7, 0.2, 0.2) : rgb(0.1, 0.4, 0.2),
   });
 
-  // Подписи
   cursorY -= 50;
   const colW = (width - marginX * 2 - 40) / 2;
   currentPage.drawText(`От ${company.name}:`, { x: marginX, y: cursorY, size: 9, font: boldFont });
@@ -469,7 +438,6 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   currentPage.drawText('Главный бухгалтер: ___________________', { x: rightX, y: cursorY - 18, size: 8.5, font: regularFont });
   currentPage.drawText('М.П.', { x: rightX + 160, y: cursorY - 40, size: 10, font: boldFont, color: rgb(0.6, 0.6, 0.6) });
 
-  // Номера страниц
   const totalReconPages = pdfDoc.getPageCount();
   if (totalReconPages > 1) {
     for (let pIdx = 0; pIdx < totalReconPages; pIdx++) {
@@ -489,4 +457,3 @@ export async function generateReconciliationPdf(marketId: number): Promise<Buffe
   const pdfBytes = await pdfDoc.save();
   return Buffer.from(pdfBytes);
 }
-

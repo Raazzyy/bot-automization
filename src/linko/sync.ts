@@ -45,7 +45,6 @@ async function writeCursor(entity: Entity, tm: number, rows: number, error?: str
     });
 }
 
-/** Обёртка: замер, курсор, обработка ошибки */
 async function run(
   entity: Entity,
   fn: (fromTm: number) => Promise<{ rows: number; toTm: number }>,
@@ -66,8 +65,6 @@ async function run(
     return { entity, rows: 0, fromTm, toTm: fromTm, ms: Date.now() - started, error: msg };
   }
 }
-
-/* ─────────── Сущности ─────────── */
 
 export const syncMarkets = () => run('markets', async (fromTm) => {
   const db = await getDb();
@@ -251,7 +248,6 @@ export const syncOrders = () => run('orders', async (fromTm) => {
         },
       });
 
-      // Состав заказа перезаписываем целиком — позиции могли измениться
       if (o.products?.length) {
         await db.delete(orderItems).where(eq(orderItems.orderId, o.id));
         for (const it of o.products) {
@@ -351,7 +347,6 @@ export const syncPromotions = () => run('promotions', async (fromTm) => {
   return { rows: count, toTm: tm };
 });
 
-/** Полный проход. Порядок важен: справочники раньше документов. */
 export async function syncAll(): Promise<SyncResult[]> {
   return [
     await syncMarkets(),

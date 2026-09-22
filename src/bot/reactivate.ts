@@ -28,7 +28,6 @@ export interface DormantMarket {
   draftMessageUz: string;
 }
 
-/** Вычисление медианы массива чисел */
 function median(values: number[]): number {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -38,18 +37,12 @@ function median(values: number[]): number {
     : Math.round((sorted[mid - 1]! + sorted[mid]!) / 2);
 }
 
-/**
- * Обучение поведению клиентов:
- * Анализирует историю заказов по каждой точке, вычисляет индивидуальный цикл
- * повторных закупок и выявляет клиентов, у которых цикл нарушился.
- */
 export async function findDormantMarkets(): Promise<DormantMarket[]> {
   const db = await getDb();
   const allMarkets = await db.select().from(markets);
   const dormant: DormantMarket[] = [];
 
   for (const m of allMarkets) {
-    // Берём все завершённые заказы точки, отсортированные по дате
     const mOrders = await db
       .select({
         id: orders.id,
@@ -70,12 +63,11 @@ export async function findDormantMarkets(): Promise<DormantMarket[]> {
     const lastDate = lastOrder.createdDate ?? lastOrder.dateDelivery;
     const daysSinceLast = Math.max(0, daysAgo(lastDate, config.TZ_OFFSET_HOURS) ?? 0);
 
-    let medianIntervalDays = 7; // базовый интервал по умолчанию — 1 неделя
+    let medianIntervalDays = 7;
     let isDormant = false;
     let daysOverdueCycle = 0;
 
     if (mOrders.length >= 2) {
-      // Вычисляем промежутки между последовательными заказами точки
       const intervals: number[] = [];
       for (let i = 1; i < mOrders.length; i++) {
         const prev = mOrders[i - 1]!.createdDate;
@@ -94,14 +86,12 @@ export async function findDormantMarkets(): Promise<DormantMarket[]> {
         medianIntervalDays = Math.max(3, median(intervals));
       }
 
-      // Если прошло больше 1.4 от обычного интервала (минимум 7 дней)
       const threshold = Math.max(7, Math.round(medianIntervalDays * 1.4));
       if (daysSinceLast >= threshold) {
         isDormant = true;
         daysOverdueCycle = daysSinceLast - medianIntervalDays;
       }
     } else {
-      // Был только 1 заказ — если прошло больше 12 дней, предлагаем повторить
       if (daysSinceLast >= 12) {
         isDormant = true;
         daysOverdueCycle = daysSinceLast - 7;
@@ -111,7 +101,6 @@ export async function findDormantMarkets(): Promise<DormantMarket[]> {
 
     if (!isDormant) continue;
 
-    // Выявляем любимые/регулярные товары точки из orderItems
     const orderIds = mOrders.map((o) => o.id);
     const items = await db
       .select({
@@ -147,7 +136,6 @@ export async function findDormantMarkets(): Promise<DormantMarket[]> {
     const phones = (m.phones as string[]) ?? [];
     const phone = phones[0] ?? null;
 
-    // Формируем вежливые сообщения на двух языках
     const draftMessageRu = [
       `Ассалому алейкум! Давно не оформляли доставку для «${m.name}».`,
       `У вас случайно не заканчиваются ${topNamesRu}?`,
@@ -178,14 +166,10 @@ export async function findDormantMarkets(): Promise<DormantMarket[]> {
     });
   }
 
-  // Сортируем: сначала те, у кого самая большая задержка цикла
   dormant.sort((a, b) => b.daysOverdueCycle - a.daysOverdueCycle);
   return dormant;
 }
 
-/**
- * Рендерит текст карточки спящего клиента для группы
- */
 export function renderReactivationCard(d: DormantMarket): string {
   const lines: string[] = [];
 
@@ -215,9 +199,6 @@ export function renderReactivationCard(d: DormantMarket): string {
   return lines.join('\n');
 }
 
-/**
- * Клавиатура для карточки реактивации в группе сотрудников
- */
 export function reactivationKeyboard(marketId: number): InlineKeyboard {
   return new InlineKeyboard()
     .text('🚀 Отправить клиенту', `m4:send:${marketId}`)
@@ -226,9 +207,6 @@ export function reactivationKeyboard(marketId: number): InlineKeyboard {
     .text('ℹ️ История точки', `m4:info:${marketId}`);
 }
 
-/**
- * Сканирует спящих клиентов и публикует карточки в рабочую группу
- */
 export async function postReactivationCards(
   api: Api,
   targetChatId?: string | number,
@@ -245,7 +223,6 @@ export async function postReactivationCards(
     return 0;
   }
 
-  // Публикуем до 5 самых приоритетных карточек за раз
   const batch = dormantList.slice(0, 5);
   let posted = 0;
 
@@ -270,9 +247,6 @@ export async function postReactivationCards(
   return posted;
 }
 
-/**
- * Обработка кнопок под карточкой реактивации
- */
 export async function handleReactivationCallback(
   api: Api,
   data: string,
@@ -336,7 +310,6 @@ export async function handleReactivationCallback(
       return { answer: 'Данные точки не найдены в списке спящих', alert: true };
     }
 
-    // Ищем привязанный чат клиента
     const allCusts = await db.select().from(customers);
     const cust = allCusts.find((c) => (c.marketIds as number[]).includes(marketId));
 
@@ -392,7 +365,6 @@ export async function handleReactivationCallback(
       }
     }
 
-    // Если прямого чата Telegram нет — выводим в группу готовое сообщение
     const staffChat = config.MANAGER_CHAT_ID || config.ACCOUNTANT_CHAT_ID;
     if (staffChat) {
       const prompt = [

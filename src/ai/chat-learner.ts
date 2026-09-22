@@ -36,9 +36,6 @@ export interface LearnedKnowledge {
 
 const LEARNED_FILE_PATH = path.resolve('src/ai/learned-knowledge.json');
 
-/**
- * Загрузить сохранённую базу знаний, полученную из анализа чатов
- */
 export function loadLearnedKnowledge(): LearnedKnowledge | null {
   try {
     if (!fs.existsSync(LEARNED_FILE_PATH)) return null;
@@ -50,16 +47,10 @@ export function loadLearnedKnowledge(): LearnedKnowledge | null {
   }
 }
 
-/**
- * Сохранить базу знаний
- */
 export function saveLearnedKnowledge(data: LearnedKnowledge): void {
   fs.writeFileSync(LEARNED_FILE_PATH, JSON.stringify(data, null, 2), 'utf8');
 }
 
-/**
- * Парсер HTML-файла сообщений из экспорта Telegram Desktop
- */
 export function parseTelegramHtmlMessages(htmlContent: string): Array<{ sender: string; text: string; date?: string }> {
   const re = /<div class="from_name">\s*([\s\S]*?)\s*<\/div>[\s\S]*?<div class="text">\s*([\s\S]*?)\s*<\/div>/g;
   const messages: Array<{ sender: string; text: string; date?: string }> = [];
@@ -76,9 +67,6 @@ export function parseTelegramHtmlMessages(htmlContent: string): Array<{ sender: 
   return messages;
 }
 
-/**
- * Проанализировать порцию переписки через Gemini
- */
 export async function analyzeDialogueBatch(
   clientName: string,
   messages: Array<{ sender: string; text: string }>,
@@ -163,9 +151,6 @@ ${transcript}
   }
 }
 
-/**
- * Формирование блока Few-Shot для подстановки в системный промпт ИИ
- */
 export function formatFewShotForSystemPrompt(): string {
   const data = loadLearnedKnowledge();
   if (!data || data.goldenDialogues.length === 0) return '';
@@ -185,9 +170,6 @@ ${examples ? `\nЗолотые стандарты ответов менедже�
 `.trim();
 }
 
-/**
- * Поиск профиля постоянного клиента по имени или названию точки
- */
 export function findClientProfile(query: { clientName?: string | null; marketName?: string | null }): ClientProfile | null {
   const data = loadLearnedKnowledge();
   if (!data || !data.clientProfiles || data.clientProfiles.length === 0) return null;
@@ -224,9 +206,6 @@ export interface ManagerFeedbackEntry {
   managerActualText: string;
 }
 
-/**
- * Записать корректировку живого менеджера для непрерывного обучения (Active Feedback Loop)
- */
 export function recordManagerFeedback(entry: Omit<ManagerFeedbackEntry, 'timestamp'>): void {
   try {
     let list: ManagerFeedbackEntry[] = [];
@@ -238,9 +217,8 @@ export function recordManagerFeedback(entry: Omit<ManagerFeedbackEntry, 'timesta
       timestamp: new Date().toISOString(),
     });
     fs.writeFileSync(CORRECTIONS_FILE, JSON.stringify(list.slice(-500), null, 2), 'utf8');
-    log.info(`Записана правка менеджера для чата ${entry.chatId} (всего правок: ${list.length})`);
+    log.info(`Записана правка менеджера для чата ${entry.chatId} (всего: ${list.length})`);
   } catch (e) {
     log.warn('Не удалось записать правку менеджера', (e as Error).message);
   }
 }
-

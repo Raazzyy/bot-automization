@@ -1,10 +1,3 @@
-/**
- * Системные промпты.
- *
- * Канал A и канал B — это два разных голоса, а не один на оба.
- * В канале A сообщение подписано живым аккаунтом компании, поэтому оно
- * должно читаться как написанное человеком. В канале B бот и выглядит ботом.
- */
 import { getAllSettings, type AppSettings } from '../lib/settings.js';
 import { formatFewShotForSystemPrompt } from './chat-learner.js';
 
@@ -150,11 +143,6 @@ export const SYSTEM_CHANNEL_B = `
 ${COMMON_RULES}
 `.trim();
 
-/**
- * Определяем язык вопроса кодом и указываем модели прямо.
- * Общего правила «отвечай на языке вопроса» в промпте мало:
- * на смешанных фразах модель регулярно съезжает на русский.
- */
 export function detectLang(text: string): 'uz' | 'ru' {
   const t = text.toLowerCase();
 
@@ -167,15 +155,12 @@ export function detectLang(text: string): 'uz' | 'ru' {
   if (hasUz && !hasRu) return 'uz';
   if (hasRu && !hasUz) return 'ru';
 
-  // Латиница с апострофами — почти наверняка узбекский
   if (/[a-z]/.test(t) && /['''‘’]/.test(t)) return 'uz';
-  // Кириллица со специфично узбекскими буквами
   if (/[ўқғҳ]/.test(t)) return 'uz';
 
   return hasUz ? 'uz' : 'ru';
 }
 
-/** Контекст клиента, который подмешивается к системному промпту */
 export function buildContext(o: {
   clientName?: string | null;
   marketName?: string | null;
@@ -232,8 +217,6 @@ export function buildContext(o: {
     lines.push(...profileLines);
   }
 
-  // Без этого блока модель не знает ни одного ключа и вызвать
-  // otpravit_fayl не сможет — придумывать ключи ей запрещено.
   if (o.media?.length) {
     lines.push('', 'ФАЙЛЫ, КОТОРЫЕ МОЖНО ОТПРАВИТЬ (инструмент otpravit_fayl):');
     for (const m of o.media) {
@@ -249,11 +232,6 @@ export function buildContext(o: {
   return lines.join('\n');
 }
 
-
-/**
- * Динамическое формирование системного промпта с учетом настроек White-Label,
- * базы знаний и пользовательских инструкций поведения.
- */
 export async function getSystemPromptA(customSettings?: AppSettings): Promise<string> {
   const s = customSettings ?? await getAllSettings();
   const manager = s.manager_name || 'Шохрух';
@@ -321,9 +299,6 @@ ${COMMON_RULES}
   return prompt.trim();
 }
 
-/**
- * Динамическое формирование системного промпта для Канала B (прямой бот)
- */
 export async function getSystemPromptB(customSettings?: AppSettings): Promise<string> {
   const s = customSettings ?? await getAllSettings();
   const brand = s.company_brand || s.company_name || 'AKM Distribution';

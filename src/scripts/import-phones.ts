@@ -1,11 +1,3 @@
-/**
- * Импорт списка номеров из «НОМЕРА ДЛЯ БОТА.xlsx».
- *
- *   npm run phones:import -- "НОМЕРА ДЛЯ БОТА.xlsx"
- *
- * Ничего никуда не отправляет. Разбирает файл, нормализует номера,
- * сверяет с точками в зеркале Linko и пишет два отчёта рядом с файлом.
- */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
@@ -18,14 +10,12 @@ import { normalizePhone, formatPhone } from '../lib/phone.js';
 const OK = '\x1b[32m✓\x1b[0m';
 const WARN = '\x1b[33m!\x1b[0m';
 
-/** Минимальный парсер xlsx: распаковка + чтение XML. Без внешних зависимостей. */
 function readColumnA(file: string): string[] {
   const work = join(tmpdir(), `akm-xlsx-${Date.now()}`);
   mkdirSync(work, { recursive: true });
   const zip = join(work, 'book.zip');
   copyFileSync(file, zip);
 
-  // PowerShell есть на любой Windows; на других системах — unzip
   try {
     execFileSync('powershell', [
       '-NoProfile', '-Command',
@@ -47,7 +37,7 @@ function readColumnA(file: string): string[] {
   const sheet = readFileSync(join(work, 'xl', 'worksheets', 'sheet1.xml'), 'utf8');
   const out: string[] = [];
   for (const m of sheet.matchAll(/<c r="A(\d+)"([^>]*)>([\s\S]*?)<\/c>/g)) {
-    if (Number(m[1]) < 2) continue; // строка 1 — заголовок
+    if (Number(m[1]) < 2) continue;
     const v = /<v>([\s\S]*?)<\/v>/.exec(m[3]!)?.[1];
     if (v === undefined) continue;
     out.push(/t="s"/.test(m[2]!) ? (shared[Number(v)] ?? '') : v);
@@ -66,7 +56,7 @@ async function main() {
   const db = await getDb();
 
   const raw = readColumnA(file);
-  const good = new Map<string, number>();   // E.164 → сколько раз встретился
+  const good = new Map<string, number>();
   const bad: { row: number; raw: string; reason: string }[] = [];
 
   raw.forEach((value, i) => {
@@ -75,7 +65,6 @@ async function main() {
     else bad.push({ row: i + 2, raw: String(value), reason: r.reason });
   });
 
-  // Сверка с точками Linko
   const allMarkets = await db.select().from(markets);
   const byPhone = new Map<string, { id: number; name: string }[]>();
   for (const m of allMarkets) {

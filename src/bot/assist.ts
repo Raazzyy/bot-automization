@@ -16,19 +16,6 @@ import { generateWaybillPdf, generateReconciliationPdf } from '../lib/pdf-waybil
 import { matchOrderEntitiesToCatalog, type EnrichedEntity } from '../ai/catalog-match.js';
 import { getCompanyProfile } from '../lib/settings.js';
 
-/**
- * Полуавтомат (Умный ассистент).
- *
- * Бот самостоятельно закрывает типовые рутинные действия:
- * 1. Мгновенно высылает прайс-лист, каталог и фото по запросу.
- * 2. Мгновенно подтверждает приём документов и реквизитов для договора.
- * 3. Мгновенно подтверждает приём заказа.
- * 4. Консультирует по наличию и базовым ценам из каталога.
- * 5. Распознаёт реквизиты компаний из PDF и фото через Gemini OCR.
- * 6. Предлагает повтор прошлого заказа в один клик.
- * 7. Даёт сотрудникам кнопки быстрых ответов в 1 тап прямо под карточкой.
- */
-
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -51,13 +38,11 @@ export interface IncomingRequest {
   clientName: string;
   username?: string;
   text: string;
-  /** Если прислали не текст */
   attachmentKind?: string;
   attachmentFileId?: string;
   attachmentMimeType?: string;
 }
 
-/** Сопоставление текста с активными файлами из библиотеки */
 export async function matchMediaFiles(text: string): Promise<typeof mediaFiles.$inferSelect[]> {
   if (!text.trim()) return [];
   const db = await getDb();
@@ -114,7 +99,6 @@ function renderCard(r: {
   lines.push('');
   lines.push(`<i>${esc(r.text).slice(0, 900)}</i>`);
 
-  // Разобранный заказ — по юрлицам, с автоматическим сопоставлением по каталогу и прайсу
   if (x?.matchedOrders?.length) {
     lines.push('');
     for (const o of x.matchedOrders) {
@@ -142,7 +126,6 @@ function renderCard(r: {
     }
   }
 
-  // Извлечённые реквизиты и данные документов (OCR)
   if (x?.requisites) {
     const q = x.requisites;
     if (q.inn || q.companyName || q.director || q.passportNumber || q.pinfl || q.account) {
@@ -211,7 +194,6 @@ function cardKeyboard(id: number, status: string, extracted?: ExtractedWithAuto 
     }
   }
 
-  // Если есть адрес в реквизитах, добавим кнопку Яндекс Карт для экспедиторов
   const addr = extracted?.requisites?.address;
   if (addr) {
     kb.row().url('📍 Маршрут (Яндекс Карты)', `https://yandex.uz/maps/?text=${encodeURIComponent(addr)}`);
@@ -221,15 +203,9 @@ function cardKeyboard(id: number, status: string, extracted?: ExtractedWithAuto 
   return kb;
 }
 
-/**
- * Извлекает название заведения (ресторан, кафе, магазин, ооо) из произвольного текста
- * Поддерживает кавычки, многословные названия («Caravan City», «Bella Italia»),
- * а также русские и узбекские приставки (restoran, choyxona, kafe, do'kon, oshxona).
- */
 export function extractMarketNameFromText(text: string): string | null {
   if (!text) return null;
 
-  // 1. В кавычках: «Caravan City», "Bella Italia", 'Rayhon'
   const quoted = text.match(/[«"']([^»"']{2,40})[»"']/);
   if (quoted && quoted[1]) {
     const q = quoted[1].trim();
@@ -238,7 +214,6 @@ export function extractMarketNameFromText(text: string): string | null {
     }
   }
 
-  // 2. С префиксами заведений (RU / UZ)
   const match = text.match(/(?:ресторан[уае]?|restoran(?:ga|da|i)?|кафе|kafe|магазин[уае]?|do['`‘ʼ]?kon|dokon|ошхона|oshxona|чойхона|choyxona|ооо|мчж|mchj)\s*([a-zA-Zа-яА-ЯёЁ0-9_-]+(?:\s+[a-zA-Zа-яА-ЯёЁ0-9_-]+)?)/i);
   if (match && match[1]) {
     const raw = match[1].trim();
@@ -250,7 +225,6 @@ export function extractMarketNameFromText(text: string): string | null {
   return null;
 }
 
-/** Клиент написал — автономные действия и карточка в группе */
 export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void> {
   const chat = config.ASSIST_CHAT_ID || config.MANAGER_CHAT_ID;
   if (!chat) {
@@ -262,7 +236,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
   const autoActions: string[] = [];
   let status = 'new';
 
-  // 1. Быстро проверяем запрос материалов и совпадение файлов (локально и мгновенно)
   const matchedFiles = await matchMediaFiles(r.text);
 
   if (matchedFiles.length > 0) {
@@ -311,10 +284,8 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
 
   let matchedOrders: EnrichedEntity[] | null = null;
 
-  // 2. Разбираем структуру запроса через Gemini (заказ, вопросы, реквизиты)
   const extracted = r.text ? await extractRequest(r.text) : null;
 
-  // Если были отправлены файлы и нет заказа или других вопросов — помечаем готовым
   if (matchedFiles.length > 0) {
     const otherQuestions = extracted?.questions?.filter(
       (q) => !/(прайс|каталог|katalog|price|narx|файл|скин)/i.test(q)
@@ -324,7 +295,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
     }
   }
 
-  // 3. OCR реквизитов из присланного файла (PDF / фото)
   let requisites: CompanyRequisites | null = null;
   const isWaybillRequest = /(накладн|накл|чек|hisob.faktura|nakladnoy)/i.test(r.text);
   const isActRequest = /(акт сверк|сверк|akt sverk|hisob.kitob)/i.test(r.text);
@@ -349,7 +319,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
     }
   }
 
-  // 4. Подтверждение документов / реквизитов (только если клиент реально прислал реквизиты, а не просит накладную)
   if (isCustomerSubmittingDocs && !matchedFiles.length) {
     const lang = detectLang(r.text);
     const ackText = lang === 'uz'
@@ -377,7 +346,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
     }
   }
 
-  // 5. Повтор прошлого заказа («повторить прошлый», «как в прошлый раз», «o'tgan safargidek»)
   const isRepeatRequest = /(повтор|как в прошлый|o'tgan safar|o‘tgan safar|takror)/i.test(r.text);
   if (isRepeatRequest && !extracted?.isOrder) {
     const cust = (await db.select().from(customers).where(eq(customers.tgUserId, r.chatId)).limit(1))[0];
@@ -443,14 +411,12 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
     }
   }
 
-  // 5.1 Запрос накладной / чека («скиньте накладную», «чек», «nakladnoy», «hisob-faktura»)
   if (isWaybillRequest && !extracted?.isOrder) {
     const cust = (await db.select().from(customers).where(eq(customers.tgUserId, r.chatId)).limit(1))[0];
     const marketIds = cust?.marketIds ?? [];
 
     let targetOrder = null;
 
-    // Сначала проверяем, названо ли заведение в самом сообщении (например «накладная для ресторана Оазис» или «накладная Oasis»)
     const allMarkets = await db.select().from(markets);
     let specifiedMarket = null;
     for (const m of allMarkets) {
@@ -500,7 +466,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
         .limit(1))[0];
 
       if (!targetOrder) {
-        // Создадим заказ для этой точки с реальными товарами из официального каталога AKM
         const [maxO] = await db.select({ id: orders.id }).from(orders).orderBy(desc(orders.id)).limit(1);
         const nextOId = Math.max(1, (maxO?.id ?? 0) + 1);
         await db.insert(orders).values({
@@ -571,12 +536,10 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
     }
   }
 
-  // 5.2 Запрос акта сверки («акт сверки», «сверка», «hisob-kitob», «akt sverka»)
   if (isActRequest && !extracted?.isOrder) {
     const cust = (await db.select().from(customers).where(eq(customers.tgUserId, r.chatId)).limit(1))[0];
     let targetMarketId: number | null = null;
 
-    // 1. Сначала проверяем, названо ли конкретное заведение в тексте сообщения (например «по ресторану Oasis», «сверка Оазис»)
     const allMarkets = await db.select().from(markets);
     for (const m of allMarkets) {
       const clearName = m.name.replace(/[«»"]/g, '').toLowerCase().trim();
@@ -590,7 +553,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
       }
     }
 
-    // 2. Если в базе пока нет, но клиент указал название точки в тексте
     if (!targetMarketId) {
       const namedRest = extractMarketNameFromText(r.text);
       if (namedRest) {
@@ -621,7 +583,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
       }
     }
 
-    // 3. Если заведение не упомянуто, берем последнюю точку клиента
     if (!targetMarketId && cust?.marketIds?.length) {
       targetMarketId = cust.marketIds[cust.marketIds.length - 1] ?? null;
     }
@@ -631,7 +592,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
         const [m] = await db.select().from(markets).where(eq(markets.id, targetMarketId)).limit(1);
         const mName = m?.name ?? 'контрагента';
 
-        // Если у точки пока нет отгрузок, привяжем заказ с товарами из официального каталога
         const existingOrders = await db.select().from(orders).where(eq(orders.marketId, targetMarketId));
         if (!existingOrders.length) {
           const [maxO] = await db.select({ id: orders.id }).from(orders).orderBy(desc(orders.id)).limit(1);
@@ -690,11 +650,9 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
     }
   }
 
-  // 6. Подтверждение и динамическое сохранение заказа с сопоставлением по каталогу
   if (extracted?.isOrder && extracted.orders?.length) {
     const lang = detectLang(r.text);
 
-    // Динамическое сохранение заказа и точки в базу
     try {
       const cust = (await db.select().from(customers).where(eq(customers.tgUserId, r.chatId)).limit(1))[0];
       const extractedEntity = extracted.orders[0]?.entity?.trim();
@@ -730,7 +688,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
         }).where(eq(customers.id, cust.id));
       }
 
-      // Сопоставляем позиции с каталогом и прайс-листом (додумываем SKU)
       matchedOrders = await matchOrderEntitiesToCatalog(extracted.orders, market?.priceListId ?? 1);
 
       const [maxOrder] = await db.select({ id: orders.id }).from(orders).orderBy(desc(orders.id)).limit(1);
@@ -787,7 +744,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
         log.info(`Полуавтомат: сохранён динамический заказ №${nextOrderId} для «${market.name}» (${itemsToInsert.length} поз., сумма ${orderTotal} сум)`);
       }
 
-      // Формируем подтверждение клиенту со списком распознанных товаров
       const recognizedLines = matchedOrders
         .flatMap((m) => m.items)
         .map((it) => `• ${it.officialName} — ${it.qty} ${it.unit}`);
@@ -820,7 +776,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
     }
   }
 
-  // 7. Вопрос о наличии / цене конкретного товара (если это не заказ и файлы/документы не высылались)
   if (!extracted?.isOrder && !isCustomerSubmittingDocs && matchedFiles.length === 0 && !isRepeatRequest && !isWaybillRequest && !isActRequest && r.text.trim()) {
     try {
       const cust = (await db.select().from(customers).where(eq(customers.tgUserId, r.chatId)).limit(1))[0];
@@ -920,7 +875,6 @@ export async function handleIncoming(api: Api, r: IncomingRequest): Promise<void
   }
 }
 
-/** Кнопки на карточке */
 export async function handleAssistCallback(
   api: Api,
   data: string,
@@ -949,7 +903,6 @@ export async function handleAssistCallback(
   }
 
   if (action === 'pdf') {
-    // Сотрудник нажал «Накладная PDF» под карточкой заказа
     const cust = (await db.select().from(customers).where(eq(customers.tgUserId, r.chatId)).limit(1))[0];
     const marketId = cust?.marketIds?.[0];
 
@@ -982,7 +935,6 @@ export async function handleAssistCallback(
     }
   }
 
-  // Быстрый ответ в 1 клик прямо клиенту
   if (action === 'quick') {
     const quickKey = parts[3];
     const lang = detectLang(r.text);
@@ -1106,9 +1058,6 @@ export async function handleAssistCallback(
   };
 }
 
-/**
- * Сотрудник ответил на карточку в группе — доставляем текст клиенту.
- */
 export async function relayStaffReply(
   api: Api,
   replyToMessageId: number,

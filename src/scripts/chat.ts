@@ -1,11 +1,3 @@
-/**
- * Уровень 1: диалог с моделью в терминале, без Telegram.
- *
- *   npm run chat
- *
- * Работает на демо-каталоге. Видно, какие инструменты модель вызвала
- * и что они вернули — сразу заметно, если она придумывает цены.
- */
 import { createInterface } from 'node:readline/promises';
 import { eq } from 'drizzle-orm';
 import { migrate } from '../db/migrate.js';
@@ -30,7 +22,6 @@ async function main() {
   await migrate();
   const db = await getDb();
 
-  // Играем за клиента первой демо-точки
   const [market] = await db.select().from(markets).where(eq(markets.id, -1)).limit(1);
   if (!market) {
     console.error(`\n${C.red}Нет демо-данных.${C.reset} Сначала: npm run seed\n`);

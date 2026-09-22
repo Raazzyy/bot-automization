@@ -2,10 +2,6 @@ import { sql } from 'drizzle-orm';
 import { getDb } from './index.js';
 import { log } from '../lib/logger.js';
 
-/**
- * Схема создаётся обычным SQL, а не drizzle-kit: одни и те же запросы
- * проходят и на встроенной PGlite, и на боевом Postgres, без отдельного шага сборки.
- */
 const DDL = [
   `CREATE TABLE IF NOT EXISTS sync_state (
      entity text PRIMARY KEY,
@@ -254,7 +250,6 @@ export async function migrate(): Promise<number> {
   return DDL.length;
 }
 
-// Запуск напрямую: tsx src/db/migrate.ts
 const scriptPath = process.argv[1]?.replace(/\\/g, '/') ?? '';
 if (scriptPath.endsWith('migrate.ts') || scriptPath.endsWith('migrate.js') || (scriptPath && import.meta.url.endsWith(scriptPath))) {
   migrate()

@@ -1,12 +1,6 @@
 import { config } from '../config.js';
 import * as schema from './schema.js';
 
-/**
- * Одна схема — две среды.
- *   pglite://<путь>  — встроенный Postgres в файле, ничего ставить не надо (тест)
- *   postgres://...   — обычный Postgres: Neon, Supabase, свой сервер (бой)
- */
-
 type Db = Awaited<ReturnType<typeof create>>;
 
 async function create() {
@@ -19,7 +13,6 @@ async function create() {
     const { dirname, resolve } = await import('node:path');
 
     const dir = resolve(url.replace('pglite://', ''));
-    // PGlite сам родительский каталог не создаёт
     mkdirSync(dirname(dir), { recursive: true });
 
     try {
@@ -28,8 +21,6 @@ async function create() {
       pglite = client;
       return drizzle(client, { schema });
     } catch (e) {
-      // PGlite падает невнятным сбоем WASM в двух разных случаях.
-      // Объясняем оба, иначе разбираться в этом мучительно.
       throw new Error(
         `Встроенная база в «${dir}» не открылась. Две обычные причины:\n`
         + '   1. Параллельно запущен другой процесс — например «npm run dev».\n'
@@ -59,14 +50,9 @@ export function getDb(): Promise<Db> {
   return instance;
 }
 
-/**
- * Штатно закрыть базу. Для PGlite это обязательно: процесс, убитый
- * без закрытия, оставляет каталог в состоянии, из которого база
- * больше не поднимается.
- */
 export async function closeDb(): Promise<void> {
   if (pglite) {
-    try { await pglite.close(); } catch { /* уже закрыта */ }
+    try { await pglite.close(); } catch {}
     pglite = null;
   }
   instance = null;

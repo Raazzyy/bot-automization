@@ -71,7 +71,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 let cache: AppSettings | null = null;
 let cacheTime = 0;
-const CACHE_TTL_MS = 5000; // 5 секунд кэша
+const CACHE_TTL_MS = 5000;
 
 export async function getAllSettings(): Promise<AppSettings> {
   const now = Date.now();
@@ -128,8 +128,7 @@ export async function updateSettings(updates: Partial<AppSettings>): Promise<App
   for (const [k, val] of Object.entries(updates)) {
     if (val === undefined) continue;
     const strVal = typeof val === 'boolean' ? String(val) : String(val);
-    
-    // UPSERT в system_settings
+
     await db
       .insert(systemSettings)
       .values({
@@ -146,7 +145,6 @@ export async function updateSettings(updates: Partial<AppSettings>): Promise<App
       });
   }
 
-  // Сброс кэша
   cache = null;
   cacheTime = 0;
   return getAllSettings();

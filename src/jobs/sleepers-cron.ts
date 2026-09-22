@@ -5,9 +5,6 @@ import { log } from '../lib/logger.js';
 
 let cronInterval: NodeJS.Timeout | null = null;
 
-/**
- * Запуск единичного сканирования спящих клиентов
- */
 export async function scanAndNotifyDormantMarkets(api?: Api): Promise<{ scanned: number; posted: number }> {
   log.info('Запуск автономного сканирования спящих клиентов...');
   try {
@@ -28,16 +25,12 @@ export async function scanAndNotifyDormantMarkets(api?: Api): Promise<{ scanned:
   }
 }
 
-/**
- * Запуск периодического фонового мониторинга спящих клиентов (по умолчанию каждые 12 часов)
- */
 export function startSleepersCron(api?: Api, intervalHours = 12): void {
   if (cronInterval) clearInterval(cronInterval);
 
   const ms = intervalHours * 3600 * 1000;
   log.info(`Фоновый автопилот спящих клиентов запущен с интервалом ${intervalHours} ч.`);
 
-  // Запуск фонового интервала
   cronInterval = setInterval(() => {
     scanAndNotifyDormantMarkets(api).catch((err) => {
       log.error('Ошибка планового сканирования спящих клиентов:', err);

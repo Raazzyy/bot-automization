@@ -1,10 +1,3 @@
-/**
- * Локальный запуск для тестового аккаунта.
- * Long polling — публичный адрес и вебхуки не нужны.
- *
- *   npm run dev
- */
-import { createServer, type Server } from 'node:http';
 import { config } from './config.js';
 import { migrate } from './db/migrate.js';
 import { closeDb } from './db/index.js';
@@ -14,9 +7,6 @@ import { syncAll } from './linko/sync.js';
 import { log } from './lib/logger.js';
 import { startAdminServer } from './server/admin-api.js';
 
-
-
-/** Эти типы апдейтов Telegram не присылает по умолчанию — их надо запросить явно */
 const ALLOWED_UPDATES = [
   'message',
   'edited_message',
@@ -47,7 +37,6 @@ async function syncTick(bot: ReturnType<typeof createBot> | null) {
       log.info(`Синхронизация: всего ${total} записей`);
     }
 
-    // Новые данные — сразу проверяем, есть ли что публиковать бухгалтерам
     if (bot && total > 0) {
       await postNewOrders(bot.api);
       await postNewPayments(bot.api);
@@ -89,7 +78,6 @@ async function main() {
       log.error('Telegram: не удалось получить данные бота после 5 попыток');
     }
 
-    // Снимаем вебхук, иначе long polling не заработает
     await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
 
     void bot.start({
@@ -103,11 +91,9 @@ async function main() {
     log.warn('BOT_TOKEN не задан — работает только синхронизация с Linko');
   }
 
-  // Запуск веб-панели управления и API (White-Label CRM, документы, AI симулятор)
   const port = config.PORT || Number(process.env.PORT) || 3000;
   const adminServer = startAdminServer(port);
 
-  // Первый прогон синхронизации сразу в фоне, дальше по расписанию
   void syncTick(bot);
   const timer = setInterval(() => void syncTick(bot), config.SYNC_INTERVAL_SEC * 1000);
   log.info(`Синхронизация каждые ${config.SYNC_INTERVAL_SEC} с`);
@@ -119,8 +105,6 @@ async function main() {
       adminServer.close();
     }
     if (bot) await bot.stop();
-    // Встроенную базу обязательно закрыть: убитый процесс оставляет
-    // каталог в состоянии, из которого она больше не поднимется.
     await closeDb();
     log.info('База закрыта, до свидания');
     process.exit(0);

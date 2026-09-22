@@ -42,15 +42,10 @@ export interface DebtOverview {
   debtors: DebtMarketSummary[];
 }
 
-/**
- * Рассчитывает баланс и старение дебиторской задолженности по всем точкам.
- * По правилам FIFO: оплаты в первую очередь гасят старые заказы.
- */
 export async function calculateDebts(): Promise<DebtOverview> {
   const db = await getDb();
   const today = todayTashkent(config.TZ_OFFSET_HOURS);
 
-  // 1. Все доставленные/отгруженные заказы
   const allOrders = await db
     .select({
       id: orders.id,
@@ -67,7 +62,6 @@ export async function calculateDebts(): Promise<DebtOverview> {
     .where(inArray(orders.status, ['delivered', 'given', 'success']))
     .orderBy(orders.createdDate, orders.id);
 
-  // 2. Все проведённые оплаты
   const allPayments = await db
     .select({
       id: payments.id,
@@ -81,11 +75,9 @@ export async function calculateDebts(): Promise<DebtOverview> {
       eq(payments.isDelete, false),
     ));
 
-  // 3. Данные по точкам (телефоны, названия)
   const allMarkets = await db.select().from(markets);
   const marketMap = new Map(allMarkets.map((m) => [m.id, m]));
 
-  // Группируем заказы и оплаты по marketId
   const ordersByMarket = new Map<number, typeof allOrders>();
   for (const o of allOrders) {
     if (o.marketId == null) continue;
@@ -120,7 +112,6 @@ export async function calculateDebts(): Promise<DebtOverview> {
     let bucket60p = 0;
     let maxOverdueDays = 0;
 
-    // FIFO: списываем оплаты от самых старых заказов к новым
     for (const o of mOrders) {
       const price = toSum(o.totalPrice);
       if (availablePayments >= price) {
@@ -130,7 +121,6 @@ export async function calculateDebts(): Promise<DebtOverview> {
         availablePayments = 0;
         debtTotal += unpaid;
 
-        // Дата, от которой отсчитывается просрочка: paymentDate (отсрочка) или createdDate
         const baseDate = o.paymentDate || o.dateDelivery || o.createdDate;
         const days = Math.max(0, daysAgo(baseDate, config.TZ_OFFSET_HOURS) ?? 0);
 
@@ -167,7 +157,6 @@ export async function calculateDebts(): Promise<DebtOverview> {
         maxOverdueDays,
       });
 
-      // Сохраняем ежедневный срез в базу
       await db.insert(debtSnapshots).values({
         date: today,
         marketId,
@@ -191,7 +180,6 @@ export async function calculateDebts(): Promise<DebtOverview> {
     }
   }
 
-  // Сортируем: сначала самые крупные должники
   debtors.sort((a, b) => b.debtTotal - a.debtTotal);
 
   const totalDebt = debtors.reduce((s, d) => s + d.debtTotal, 0);
@@ -214,9 +202,6 @@ export async function calculateDebts(): Promise<DebtOverview> {
   };
 }
 
-/**
- * Формирует текст сводки по задолженности
- */
 export function buildDebtSummaryText(overview: DebtOverview): string {
   const lines: string[] = [];
   const overduePercent = overview.totalDebt > 0
@@ -254,13 +239,9 @@ export function buildDebtSummaryText(overview: DebtOverview): string {
   return lines.join('\n');
 }
 
-/**
- * Клавиатура для управления долгами: кнопки напоминания клиентам
- */
 export function buildDebtKeyboard(debtors: DebtMarketSummary[]): InlineKeyboard {
   const kb = new InlineKeyboard();
 
-  // Добавляем кнопки напоминания и акт сверки для топ-3 должников с просрочкой
   const needReminder = debtors.filter((d) => d.debtTotal > 0).slice(0, 3);
   for (const d of needReminder) {
     const shortName = d.marketName.length > 13
@@ -277,9 +258,6 @@ export function buildDebtKeyboard(debtors: DebtMarketSummary[]): InlineKeyboard 
   return kb;
 }
 
-/**
- * Публикация сводки дебиторки в группу финотдела / бухгалтерии
- */
 export async function postDebtSummary(api: Api, targetChatId?: string | number): Promise<void> {
   const chat = targetChatId || config.FINANCE_CHAT_ID || config.ACCOUNTANT_CHAT_ID;
   if (!chat) {
@@ -304,9 +282,6 @@ export async function postDebtSummary(api: Api, targetChatId?: string | number):
   log.info(`M5: сводка дебиторки отправлена в чат ${chat}`);
 }
 
-/**
- * Обработка нажатий на инлайн-кнопки дебиторки
- */
 export async function handleDebtCallback(
   api: Api,
   data: string,
@@ -370,7 +345,6 @@ export async function handleDebtCallback(
     const debtor = overview.debtors.find((d) => d.marketId === marketId);
     if (!debtor) return { answer: 'Точка не найдена среди должников', alert: true };
 
-    // Составляем вежливое напоминание
     const reminderText = [
       `Ассалому алейкум!`,
       `Напоминаем, что по данным бухгалтерской сверки за «${debtor.marketName}» числится задолженность в размере ${fmtSum(debtor.debtTotal)}.`
@@ -381,8 +355,6 @@ export async function handleDebtCallback(
       `Спасибо за сотрудничество!`,
     ].join('\n');
 
-    // Ищем привязанный чат в канале A или B
-    // 1) По прямому совпадению marketId в customers.marketIds
     const allCusts = await db.select().from(customers);
     const targetCust = allCusts.find((c) => (c.marketIds as number[]).includes(marketId));
 
@@ -435,7 +407,6 @@ export async function handleDebtCallback(
       }
     }
 
-    // Если прямого чата нет — публикуем в группу готовый блок для звонка / SMS
     const staffChat = config.FINANCE_CHAT_ID || config.ACCOUNTANT_CHAT_ID;
     if (staffChat) {
       const note = [

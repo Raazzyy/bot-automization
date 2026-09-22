@@ -1,42 +1,24 @@
 import { config } from '../config.js';
 import { log } from '../lib/logger.js';
 
-/**
- * Разбор свободного текста клиента в структуру.
- *
- * Здесь модель НИЧЕГО не решает и никому не отвечает — она только
- * раскладывает сообщение по полочкам, чтобы менеджер увидел аккуратную
- * карточку вместо простыни. Если разбор не удался, показываем как есть:
- * потерять сообщение хуже, чем показать его сырым.
- */
-
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 export interface ExtractedItem {
-  /** Название так, как написал клиент */
   name: string;
-  /** Количество, если названо */
   qty: number | null;
-  /** Единица: шт, кг, коробка, мешок… */
   unit: string | null;
 }
 
 export interface ExtractedEntity {
-  /** Юрлицо или точка, если клиент их разделил */
   entity: string | null;
   items: ExtractedItem[];
 }
 
 export interface Extracted {
-  /** Похоже ли сообщение на заказ */
   isOrder: boolean;
-  /** Заказ, разложенный по юрлицам */
   orders: ExtractedEntity[];
-  /** Вопросы, не относящиеся к заказу */
   questions: string[];
-  /** Про документы, договоры, счета, оплату */
   aboutDocuments: boolean;
-  /** Одна строка сути — для заголовка карточки */
   summary: string;
 }
 
@@ -140,7 +122,6 @@ export async function extractRequest(text: string): Promise<Extracted> {
       summary: parsed.summary || text.slice(0, 80),
     };
   } catch (e) {
-    // Разбор не удался — не беда, менеджер увидит исходный текст
     log.warn('Разбор сообщения не удался, покажу как есть', (e as Error).message);
     return { ...EMPTY, summary: text.slice(0, 80) };
   }

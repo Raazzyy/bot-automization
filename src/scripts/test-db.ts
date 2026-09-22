@@ -1,12 +1,3 @@
-/**
- * Проверка боевой базы Postgres перед деплоем.
- *
- *   DATABASE_URL=postgres://... npm run test:db
- *
- * Прогоняет тот же путь, что и в бою: создаёт схему, пишет обращение,
- * читает обратно, удаляет. Если это прошло — на Neon/Replit всё заработает.
- * Главный технический риск переезда со встроенной базы закрывается здесь.
- */
 import { sql } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb, closeDb, isEmbeddedDb } from '../db/index.js';
@@ -28,28 +19,23 @@ async function main() {
     process.exit(1);
   }
 
-  // 1. Подключение
   const db = await getDb();
   await db.execute(sql`select 1`);
   console.log(`${OK} подключение`);
 
-  // 2. Схема
   const n = await migrate();
   console.log(`${OK} схема создана (${n} запросов)`);
 
-  // 3. Запись
   const [row] = await db.insert(requests).values({
     chatId: -999, clientName: 'ТЕСТ', text: 'проверка боевой базы', status: 'new',
   }).returning();
   if (!row) throw new Error('вставка не вернула строку');
   console.log(`${OK} запись (обращение №${row.id})`);
 
-  // 4. Чтение
   const [back] = await db.select().from(requests).where(eq(requests.id, row.id)).limit(1);
   if (back?.clientName !== 'ТЕСТ') throw new Error('прочитали не то, что записали');
   console.log(`${OK} чтение`);
 
-  // 5. Уборка
   await db.delete(requests).where(eq(requests.id, row.id));
   console.log(`${OK} удаление`);
 

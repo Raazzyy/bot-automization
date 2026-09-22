@@ -5,7 +5,7 @@ import { desc, eq, sql, and, or } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';
 import { orders, orderItems, markets, businessConnections } from '../db/schema.js';
-import { getAllSettings, updateSettings, isBotEnabled, getActiveMode, getCompanyProfile } from '../lib/settings.js';
+import { getAllSettings, updateSettings, isBotEnabled, getActiveMode } from '../lib/settings.js';
 import { calculateDebts } from '../bot/debts.js';
 import { findDormantMarkets } from '../bot/reactivate.js';
 import { generateWaybillPdf, generateReconciliationPdf } from '../lib/pdf-waybill.js';
@@ -13,7 +13,7 @@ import { runAgent } from '../ai/agent.js';
 import { syncAll } from '../linko/sync.js';
 import { linko } from '../linko/client.js';
 import { log } from '../lib/logger.js';
-import { fmtSum, fmtNum, fmtAmount, fmtDate, toSum } from '../lib/money.js';
+import { fmtSum, fmtNum, fmtAmount, toSum } from '../lib/money.js';
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -28,7 +28,6 @@ const MIME_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
 };
 
-/** Чтение тела JSON-запроса */
 function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -50,7 +49,6 @@ function parseJsonBody<T = any>(req: IncomingMessage): Promise<T> {
   });
 }
 
-/** Отправка JSON ответа */
 function sendJson(res: ServerResponse, status: number, data: unknown) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -61,7 +59,6 @@ function sendJson(res: ServerResponse, status: number, data: unknown) {
   res.end(JSON.stringify(data));
 }
 
-/** Раздача статических файлов */
 function serveStatic(res: ServerResponse, filePath: string) {
   if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -79,11 +76,7 @@ function serveStatic(res: ServerResponse, filePath: string) {
   res.end(content);
 }
 
-/**
- * Обработчик всех входящих HTTP запросов админки и API
- */
 export async function handleAdminRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  // CORS Preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
@@ -99,8 +92,6 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
   const pathname = parsedUrl.pathname;
 
   try {
-    /* ─────────── 1. API: Статус и переключатель ─────────── */
-
     if (pathname === '/api/status' && req.method === 'GET') {
       const enabled = await isBotEnabled();
       const mode = await getActiveMode();
@@ -171,8 +162,6 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       return sendJson(res, 200, { ok: true, bot_enabled: nextState });
     }
 
-    /* ─────────── 2. API: KPI и Статистика ─────────── */
-
     if (pathname === '/api/stats' && req.method === 'GET') {
       const db = await getDb();
       const debts = await calculateDebts();
@@ -222,11 +211,8 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       });
     }
 
-    /* ─────────── 3. API: Настройки (White-Label & Промпты) ─────────── */
-
     if (pathname === '/api/settings' && req.method === 'GET') {
       const s = await getAllSettings();
-      // Скрываем секретные токены частично для безопасности UI
       return sendJson(res, 200, {
         ...s,
         telegram_bot_token_masked: s.telegram_bot_token || config.BOT_TOKEN
@@ -247,8 +233,6 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       log.info('Админка: настройки White-Label успешно сохранены');
       return sendJson(res, 200, { ok: true, settings: updated });
     }
-
-    /* ─────────── 4. API: Обновление профиля в Telegram Bot API ─────────── */
 
     if (pathname === '/api/telegram/update-profile' && req.method === 'POST') {
       const body = await parseJsonBody<{ name?: string; description?: string; shortDescription?: string }>(req);
@@ -291,8 +275,6 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       log.info('Админка: профиль бота в Telegram обновлён', results);
       return sendJson(res, 200, { ok: true, results });
     }
-
-    /* ─────────── 5. API: Заказы, Детали и PDF-накладные ─────────── */
 
     if (pathname === '/api/orders' && req.method === 'GET') {
       const q = parsedUrl.searchParams.get('q')?.trim() || '';
@@ -415,8 +397,6 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       }
     }
 
-    /* ─────────── 6. API: Дебиторка и Акты сверки ─────────── */
-
     if (pathname === '/api/debts' && req.method === 'GET') {
       const overview = await calculateDebts();
       return sendJson(res, 200, overview);
@@ -439,14 +419,10 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       }
     }
 
-    /* ─────────── 7. API: Спящие клиенты ─────────── */
-
     if (pathname === '/api/sleepers' && req.method === 'GET') {
       const sleepers = await findDormantMarkets();
       return sendJson(res, 200, sleepers);
     }
-
-    /* ─────────── 8. API: Интерактивный AI Симулятор ─────────── */
 
     if (pathname === '/api/ai/simulate' && req.method === 'POST') {
       const body = await parseJsonBody<{
@@ -485,14 +461,10 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       });
     }
 
-    /* ─────────── 9. API: Ручная синхронизация ─────────── */
-
     if (pathname === '/api/sync/trigger' && req.method === 'POST') {
       const results = await syncAll();
       return sendJson(res, 200, { ok: true, results });
     }
-
-    /* ─────────── 10. API: Список торговых точек (Маркетов) ─────────── */
 
     if (pathname === '/api/markets' && req.method === 'GET') {
       const q = parsedUrl.searchParams.get('q')?.toLowerCase() || '';
@@ -521,8 +493,6 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       return sendJson(res, 200, filtered.slice(0, limit));
     }
 
-    /* ─────────── 11. Статика SPA Панели ─────────── */
-
     const publicDir = resolve(process.cwd(), 'public', 'admin');
 
     if (pathname === '/' || pathname === '/admin' || pathname === '/admin/') {
@@ -534,13 +504,11 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
       return serveStatic(res, join(publicDir, rel));
     }
 
-    // Попытка отдать статический файл напрямую из public/admin/
     const directPath = join(publicDir, pathname.replace(/^\//, ''));
     if (existsSync(directPath) && !statSync(directPath).isDirectory()) {
       return serveStatic(res, directPath);
     }
 
-    // 404
     return sendJson(res, 404, { error: 'Маршрут не найден', path: pathname });
   } catch (err) {
     log.error(`Admin API Error: ${(err as Error).message}`);
@@ -548,9 +516,6 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
   }
 }
 
-/**
- * Создание и запуск HTTP сервера админки
- */
 export function startAdminServer(port: number = 3000): Server {
   const server = createServer((req, res) => {
     void handleAdminRequest(req, res);

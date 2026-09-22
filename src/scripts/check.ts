@@ -1,7 +1,3 @@
-/**
- * Проверка окружения. Запускать первым делом: npm run check
- * Ничего не меняет и никому не пишет — только читает и докладывает.
- */
 import { config } from '../config.js';
 import { linko } from '../linko/client.js';
 import { getDb, isEmbeddedDb } from '../db/index.js';
@@ -39,7 +35,6 @@ async function main() {
   console.log(`  Токен:      ${mask(config.LINKO_TOKEN)}`);
   console.log(`  БД:         ${isEmbeddedDb ? 'встроенная PGlite' : 'внешний Postgres'} ${DIM}${config.DATABASE_URL.replace(/:[^:@/]+@/, ':***@')}${R}\n`);
 
-  /* ── 1. База ── */
   try {
     const n = await migrate();
     const db = await getDb();
@@ -52,7 +47,6 @@ async function main() {
     problems.push('БД недоступна');
   }
 
-  /* ── 2. Linko ── */
   const ping = await linko.ping();
   if (ping.ok) {
     console.log(`${OK} Linko API — токен принят`);
@@ -74,7 +68,6 @@ async function main() {
     problems.push('Linko недоступен');
   }
 
-  /* ── 3. Telegram ── */
   if (!config.BOT_TOKEN) {
     console.log(`${WARN} Telegram — BOT_TOKEN не задан, проверяю только Linko и БД`);
     problems.push('Создайте бота в @BotFather и впишите BOT_TOKEN в .env');
@@ -84,8 +77,6 @@ async function main() {
     console.log(`${OK} Telegram — бот @${me.username} (${me.first_name})`);
     console.log(`${DIM}    Secretary Mode: ${me.can_connect_to_business ? 'включён' : 'ВЫКЛЮЧЕН'}${R}`);
     if (!me.can_connect_to_business) {
-      // Без Secretary Mode и Premium канал A недоступен, но это не блокер:
-      // в полуавтомате клиенты пишут самому боту, и всё работает.
       console.log(`${DIM}    канал A (ответы от имени аккаунта) недоступен — нужен Premium${R}`);
       console.log(`${DIM}    клиенты будут писать боту напрямую, полуавтомат от этого работает${R}`);
       if (config.MODE === 'live') {
@@ -103,7 +94,6 @@ async function main() {
     problems.push('BOT_TOKEN не работает');
   }
 
-  /* ── 4. Куда шлём ── */
   console.log('');
   const groups: [string, string][] = [
     ['Бухгалтерия (M1)', config.ACCOUNTANT_CHAT_ID],
@@ -130,7 +120,6 @@ async function main() {
     console.log(`${OK} Канал A: исключено чатов — ${config.BUSINESS_BLOCKLIST.length}`);
   }
 
-  /* ── Итог ── */
   console.log(`\n${DIM}─────────────────────────────────────────────${R}`);
   if (problems.length === 0) {
     console.log(`  ${OK} Всё готово. Запускайте: \x1b[1mnpm run sync\x1b[0m, затем \x1b[1mnpm run dev\x1b[0m`);

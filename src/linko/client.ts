@@ -8,7 +8,6 @@ import type {
 
 const API = '/api/v1/integration/external-api';
 
-/** Максимум записей за один запрос по документации Linko */
 const MAX_LIMIT = 1000;
 
 export class LinkoError extends Error {
@@ -55,7 +54,6 @@ async function request<T>(
       signal: AbortSignal.timeout(60_000),
     });
   } catch (e) {
-    // Сеть отвалилась — повторяем
     if (attempt < 4) {
       const wait = 500 * 2 ** (attempt - 1);
       log.warn(`Linko ${path}: сеть недоступна, повтор через ${wait}мс`, { attempt });
@@ -68,7 +66,6 @@ async function request<T>(
   if (!res.ok) {
     const body = await res.text().catch(() => '');
 
-    // 429 и 5xx — временные, повторяем с backoff
     if ((res.status === 429 || res.status >= 500) && attempt < 4) {
       const wait = 1000 * 2 ** (attempt - 1);
       log.warn(`Linko ${path}: HTTP ${res.status}, повтор через ${wait}мс`, { attempt });
@@ -76,12 +73,11 @@ async function request<T>(
       return request<T>(method, path, { ...opts, attempt: attempt + 1 });
     }
 
-    // Linko отдаёт причину в поле detail — она полезнее общих слов
     let detail = '';
     try {
       const j = JSON.parse(body) as { detail?: string };
       if (j.detail) detail = j.detail;
-    } catch { /* тело не JSON — покажем как есть */ }
+    } catch {}
 
     let hint = '';
     if (/integration disabled/i.test(detail)) {
@@ -105,10 +101,6 @@ async function request<T>(
   return (await res.json()) as T;
 }
 
-/**
- * Постранично забирает всю коллекцию.
- * Страницы кончились, когда пришло меньше limit записей.
- */
 async function fetchAll<T>(
   path: string,
   query: Query = {},
@@ -134,7 +126,6 @@ async function fetchAll<T>(
   return all;
 }
 
-/** Максимальный tm в пачке — новый курсор */
 export function maxTm(rows: { tm?: string | number | null }[], current = 0): number {
   let max = current;
   for (const r of rows) {
@@ -145,7 +136,6 @@ export function maxTm(rows: { tm?: string | number | null }[], current = 0): num
 }
 
 export const linko = {
-  /** Проверка токена: самый дешёвый запрос */
   async ping(): Promise<{ ok: true; users: number } | { ok: false; error: string }> {
     try {
       const env = await request<Envelope<LinkoUser>>('GET', '/users/', {
@@ -180,7 +170,6 @@ export const linko = {
 
   users: (q: Query = {}) => fetchAll<LinkoUser>('/users/', q),
 
-  /** Создание заказов. Принимает массив — Linko отвечает поштучно. */
   async syncOrders(orders: SyncOrderPayload[]) {
     return request<Envelope<{ id: number; service_id?: string }>>(
       'POST',
@@ -189,7 +178,6 @@ export const linko = {
     );
   },
 
-  /** Отметить заказы как выгруженные во внешнюю систему */
   async markOrdersSynced(orderIds: (number | string)[]) {
     return request<{ success: boolean }>('POST', '/order_synced/', {
       body: { linko_order_ids: orderIds.map(String) },

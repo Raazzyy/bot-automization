@@ -1,12 +1,3 @@
-/**
- * Библиотека файлов: прайсы, фото, ролики.
- *
- *   npm run media          — показать, что зарегистрировано
- *   npm run media -- sync  — загрузить список из media.json
- *
- * Файлы кладутся в папку media/, их описание — в media.json.
- * Образец: media.example.json
- */
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { eq } from 'drizzle-orm';
@@ -126,7 +117,6 @@ async function sync() {
         path,
         caption: e.caption ?? null,
         isActive: e.active !== false,
-        // Путь изменился — старый file_id больше не годится
         ...(prev && prev.path !== path ? { fileId: null } : {}),
         updatedAt: new Date(),
       },

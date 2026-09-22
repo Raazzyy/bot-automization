@@ -3,9 +3,6 @@ import {
   jsonb, primaryKey, index, uniqueIndex, serial,
 } from 'drizzle-orm/pg-core';
 
-/* ─────────── Служебное ─────────── */
-
-/** Курсор last_tm по каждой сущности Linko */
 export const syncState = pgTable('sync_state', {
   entity: text('entity').primaryKey(),
   lastTm: numeric('last_tm').notNull().default('0'),
@@ -13,8 +10,6 @@ export const syncState = pgTable('sync_state', {
   lastError: text('last_error'),
   rowsTotal: integer('rows_total').notNull().default(0),
 });
-
-/* ─────────── Зеркало Linko ─────────── */
 
 export const markets = pgTable('markets', {
   id: integer('id').primaryKey(),
@@ -84,7 +79,6 @@ export const orders = pgTable('orders', {
   totalPrice: numeric('total_price').notNull().default('0'),
   discountPrice: numeric('discount_price').notNull().default('0'),
   comment: text('comment'),
-  /** заказ, созданный нашим ботом (M2) */
   createdByBot: boolean('created_by_bot').notNull().default(false),
   tm: numeric('tm'),
   raw: jsonb('raw'),
@@ -144,9 +138,6 @@ export const promotions = pgTable('promotions', {
   raw: jsonb('raw'),
 });
 
-/* ─────────── Наше ─────────── */
-
-/** Клиент как личность, независимо от канала */
 export const customers = pgTable('customers', {
   id: serial('id').primaryKey(),
   tgUserId: bigint('tg_user_id', { mode: 'number' }).notNull(),
@@ -155,7 +146,6 @@ export const customers = pgTable('customers', {
   phone: text('phone'),
   lang: text('lang').notNull().default('ru'),
   marketIds: jsonb('market_ids').$type<number[]>().notNull().default([]),
-  /** согласие на проактивные сообщения (M4) */
   optedOut: boolean('opted_out').notNull().default(false),
   optedOutAt: timestamp('opted_out_at', { withTimezone: true }),
   blockedBot: boolean('blocked_bot').notNull().default(false),
@@ -163,7 +153,6 @@ export const customers = pgTable('customers', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({ uid: uniqueIndex('customers_tg_uid').on(t.tgUserId) }));
 
-/** Склейка каналов: один человек — разные chat_id в A и B */
 export const channelBindings = pgTable('channel_bindings', {
   id: serial('id').primaryKey(),
   customerId: integer('customer_id').notNull(),
@@ -173,7 +162,6 @@ export const channelBindings = pgTable('channel_bindings', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
 }, (t) => ({ uq: uniqueIndex('channel_bindings_uq').on(t.channel, t.chatId) }));
 
-/** Активные Business-подключения аккаунта */
 export const businessConnections = pgTable('business_connections', {
   id: text('id').primaryKey(),
   ownerUserId: bigint('owner_user_id', { mode: 'number' }).notNull(),
@@ -185,7 +173,6 @@ export const businessConnections = pgTable('business_connections', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Вся переписка — с пометкой канала */
 export const messages = pgTable('messages', {
   id: serial('id').primaryKey(),
   customerId: integer('customer_id'),
@@ -200,7 +187,6 @@ export const messages = pgTable('messages', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({ chatIdx: index('messages_chat_idx').on(t.chatId, t.createdAt) }));
 
-/** Что и кому отправлено — дедупликация и антиспам */
 export const outbox = pgTable('outbox', {
   id: serial('id').primaryKey(),
   dedupeKey: text('dedupe_key').notNull(),
@@ -214,7 +200,6 @@ export const outbox = pgTable('outbox', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({ dedupe: uniqueIndex('outbox_dedupe').on(t.dedupeKey) }));
 
-/** M1: состояние заказа в ЭСФ-конвейере */
 export const esfQueue = pgTable('esf_queue', {
   orderId: integer('order_id').primaryKey(),
   status: text('status').notNull().default('new'),
@@ -229,11 +214,6 @@ export const esfQueue = pgTable('esf_queue', {
   note: text('note'),
 }, (t) => ({ statusIdx: index('esf_status_idx').on(t.status) }));
 
-/**
- * Библиотека файлов: прайсы, фото товаров, ролики.
- * file_id кэшируется после первой отправки — Telegram позволяет
- * переиспользовать его и не заливать файл заново каждый раз.
- */
 export const mediaFiles = pgTable('media_files', {
   key: text('key').primaryKey(),
   kind: text('kind').notNull(),
@@ -248,10 +228,6 @@ export const mediaFiles = pgTable('media_files', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/**
- * Полуавтомат: обращение клиента как задача для сотрудников.
- * Бот сам не отвечает — только заводит карточку и доставляет ответ человека.
- */
 export const requests = pgTable('requests', {
   id: serial('id').primaryKey(),
   chatId: bigint('chat_id', { mode: 'number' }).notNull(),
@@ -277,7 +253,6 @@ export const requests = pgTable('requests', {
   cardIdx: index('requests_card_idx').on(t.cardMessageId),
 }));
 
-/** M5: ежедневный срез дебиторки */
 export const debtSnapshots = pgTable('debt_snapshots', {
   id: serial('id').primaryKey(),
   date: text('date').notNull(),
@@ -290,7 +265,6 @@ export const debtSnapshots = pgTable('debt_snapshots', {
   bucket60p: numeric('bucket_60_plus').notNull().default('0'),
 }, (t) => ({ uq: uniqueIndex('debt_snap_uq').on(t.date, t.marketId) }));
 
-/** Настройки White-Label, управление поведением и база знаний */
 export const systemSettings = pgTable('system_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),

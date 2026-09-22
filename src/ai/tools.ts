@@ -3,30 +3,17 @@ import { getDb } from '../db/index.js';
 import { products, prices, balances, orders, orderItems, markets, promotions, mediaFiles } from '../db/schema.js';
 import { fmtSum, fmtAmount, fmtDate, todayTashkent } from '../lib/money.js';
 
-/**
- * Инструменты агента.
- *
- * Правило: модель ничего не знает про товары, цены и остатки — она их
- * запрашивает здесь. Всё, чего нет в этом списке, она отвечать не должна.
- * Любая арифметика — тоже здесь, а не в голове у модели.
- */
-
 export interface ToolContext {
-  /** Точка клиента в Linko. null — клиент ещё не опознан */
   marketId: number | null;
 }
 
 export interface ToolResult {
   ok: boolean;
-  /** Текст для модели. Короткий и фактический. */
   data: string;
-  /** Признак, что нужен человек */
   handoff?: string;
-  /** Ключ файла, который надо приложить к ответу */
   sendFile?: string;
 }
 
-/** Файл из библиотеки — что модель может предложить клиенту */
 export interface MediaOption {
   key: string;
   kind: string;
@@ -35,7 +22,6 @@ export interface MediaOption {
   keywords: string[];
 }
 
-/** Активные файлы. Список подмешивается в промпт, чтобы модель знала, что есть. */
 export async function listMedia(): Promise<MediaOption[]> {
   const db = await getDb();
   const rows = await db.select().from(mediaFiles).where(eq(mediaFiles.isActive, true));
@@ -45,7 +31,6 @@ export async function listMedia(): Promise<MediaOption[]> {
   }));
 }
 
-/** Описания для модели — формат Gemini function declarations */
 export const TOOL_DECLARATIONS = [
   {
     name: 'najti_tovar',
@@ -130,12 +115,6 @@ export const TOOL_DECLARATIONS = [
   },
 ] as const;
 
-/* ─────────── Реализации ─────────── */
-
-/**
- * Каталог в Linko ведётся по-русски, а клиенты пишут и на узбекском.
- * Без этого словаря на «guruch» не находится «Рис».
- */
 const UZ_RU: Record<string, string> = {
   "yog'": 'масло', yog: 'масло', moy: 'масло', ёғ: 'масло',
   guruch: 'рис', гуруч: 'рис',
@@ -163,7 +142,6 @@ const UZ_RU: Record<string, string> = {
   sharbat: 'сок',
 };
 
-/** Варианты запроса: как написали + перевод с узбекского */
 function searchVariants(q: string): string[] {
   const low = q.toLowerCase().trim();
   const out = new Set<string>([low]);
@@ -294,7 +272,6 @@ async function statusZakaza(args: { order_id?: number }, ctx: ToolContext): Prom
   const [o] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
   if (!o) return { ok: true, data: `Заказа №${id} не найдено.` };
 
-  // Чужой заказ показывать нельзя
   if (ctx.marketId != null && o.marketId !== ctx.marketId) {
     return { ok: false, data: 'Этот заказ относится к другой точке. Нужен менеджер.' };
   }
@@ -360,8 +337,6 @@ async function pozvatMenedzhera(args: { prichina?: string }): Promise<ToolResult
     handoff: reason,
   };
 }
-
-/* ─────────── Диспетчер ─────────── */
 
 type Handler = (args: Record<string, unknown>, ctx: ToolContext) => Promise<ToolResult>;
 

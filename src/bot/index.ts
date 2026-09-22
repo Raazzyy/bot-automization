@@ -21,7 +21,6 @@ import { fmtSum } from '../lib/money.js';
 const esc = (s: unknown) =>
   String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** Что именно прислали, если это не текст */
 type NonText = 'photo' | 'document' | 'video' | 'voice' | 'audio'
   | 'sticker' | 'location' | 'contact' | 'other';
 
@@ -45,10 +44,6 @@ const KIND_RU: Record<string, string> = {
   location: 'локацию', contact: 'контакт', other: 'вложение',
 };
 
-/**
- * Короткое подтверждение получения. Разбирать документы бот не умеет
- * и не должен: договоры и паспорта — работа человека.
- */
 const ACK_BY_KIND: Record<string, string> = {
   photo: 'Фото получили, сейчас посмотрим.',
   document: 'Документы получили, передаю коллегам.',
@@ -63,7 +58,6 @@ const ACK_BY_KIND: Record<string, string> = {
 export function createBot(): Bot {
   const bot = new Bot(config.BOT_TOKEN);
 
-  /* Трассировка входящих: без неё непонятно, доходят ли обновления вообще */
   bot.use(async (ctx, next) => {
     const kinds = Object.keys(ctx.update).filter((k) => k !== 'update_id');
     const text = ctx.message?.text ?? ctx.businessMessage?.text ?? '';
@@ -75,7 +69,6 @@ export function createBot(): Bot {
     await next();
   });
 
-  /* Бота добавили в группу или убрали — сразу показываем ID чата */
   bot.on('my_chat_member', async (ctx) => {
     const status = ctx.myChatMember.new_chat_member.status;
     const chat = ctx.chat;
@@ -91,14 +84,10 @@ export function createBot(): Bot {
     }
   });
 
-  /* ─────────── Канал A: подключение к аккаунту ─────────── */
-
   bot.on('business_connection', async (ctx) => {
     const c = ctx.businessConnection;
     const db = await getDb();
 
-    // В разных версиях Bot API права приходят либо флагом can_reply,
-    // либо объектом rights — поддерживаем оба варианта.
     const raw = c as unknown as {
       can_reply?: boolean;
       rights?: { can_reply?: boolean };
@@ -130,8 +119,6 @@ export function createBot(): Bot {
     }
   });
 
-  /* ─────────── Канал A: сообщения клиентов ─────────── */
-
   bot.on('business_message', async (ctx) => {
     const msg = ctx.businessMessage;
     const connId = msg.business_connection_id;
@@ -142,8 +129,6 @@ export function createBot(): Bot {
       ? (await db.select().from(businessConnections).where(eq(businessConnections.id, connId)).limit(1))[0]
       : undefined;
 
-    // Сообщение владельца аккаунта — человек вступил в разговор.
-    // Наше дело здесь только записать: бот в этот диалог не лезет.
     const fromOwner = conn && ctx.from?.id === conn.ownerUserId;
 
     await db.insert(messages).values({
@@ -194,7 +179,6 @@ export function createBot(): Bot {
 
     log.info(`Канал A ${chatId} · ${ctx.from?.first_name ?? '?'}: ${msg.text ?? '[вложение]'}`);
 
-    // Запоминаем клиента и его чат в канале A
     if (ctx.from) {
       const [cust] = await db.insert(customers).values({
         tgUserId: ctx.from.id,
@@ -219,17 +203,14 @@ export function createBot(): Bot {
       }
     }
 
-    // Реальная переписка наполовину состоит из файлов, фото, документов и голосовых
     let text = msg.text ?? msg.caption ?? '';
     const kind = describeNonText(msg);
 
-    // Стикеры — единственное, на что отвечать не надо
     if (kind === 'sticker') return;
 
     let attachmentKind = kind ? (KIND_RU[kind] ?? kind) : undefined;
     const rawMsg = msg as Record<string, any>;
 
-    // Голосовые и аудио: расшифровываем в текст через Gemini Audio
     if (kind === 'voice' || kind === 'audio') {
       const audioId = rawMsg.voice?.file_id ?? rawMsg.audio?.file_id;
       const audioMime = rawMsg.voice?.mime_type ?? rawMsg.audio?.mime_type ?? 'audio/ogg';
@@ -248,7 +229,6 @@ export function createBot(): Bot {
       }
     }
 
-    // Документы и фото: извлекаем fileId для последующего OCR реквизитов
     let attachmentFileId: string | undefined;
     let attachmentMimeType: string | undefined;
     if (kind === 'document') {
@@ -276,7 +256,6 @@ export function createBot(): Bot {
     const isAssistMode = currentMode === 'assist';
     const canSendToClientsDynamic = currentMode === 'live';
 
-    // Полуавтомат: обработка обращения
     if (isAssistMode) {
       await handleIncoming(ctx.api, {
         chatId, messageId: msg.message_id,
@@ -337,7 +316,6 @@ export function createBot(): Bot {
       ? (await db.select().from(markets).where(eq(markets.id, marketId)).limit(1))[0]
       : undefined;
 
-    // Последние реплики этого чата — контекст разговора
     const prev = await db.select().from(messages)
       .where(eq(messages.chatId, chatId))
       .orderBy(desc(messages.id))
@@ -361,7 +339,6 @@ export function createBot(): Bot {
 
     if (turn.error) log.error('Агент не смог ответить', turn.error);
 
-    // Клиенту отвечаем только в live. В shadow — черновик менеджерам.
     if (canSendToClientsDynamic && turn.reply && !turn.error) {
       const res = await send(ctx.api, {
         dedupeKey: `reply:${chatId}:${msg.message_id}`,
@@ -384,7 +361,6 @@ export function createBot(): Bot {
           mode: config.MODE,
         });
 
-        // Файлы идут отдельными сообщениями следом за текстом
         if (turn.attachments.length) {
           const sent = await sendAttachments(ctx.api, chatId, turn.attachments, connId);
           const failed = sent.filter((r) => !r.ok);
@@ -395,7 +371,6 @@ export function createBot(): Bot {
       }
     }
 
-    // Менеджерам: в shadow — черновик, в live — только когда нужен человек
     const needStaff = !canSendToClients || turn.handoff || turn.error;
     if (config.MANAGER_CHAT_ID && needStaff) {
       const tools = turn.toolCalls.map((t) => t.name).join(', ');
@@ -426,13 +401,10 @@ export function createBot(): Bot {
     }
   });
 
-  /* ─────────── Канал B: команды ─────────── */
-
   bot.command('start', async (ctx) => {
     const payload = ctx.match;
     log.info(`Канал B: /start от ${ctx.from?.id}${payload ? ` (${payload})` : ''}`);
 
-    // В группе /start жмут сотрудники, в личке — клиенты. Тексты разные.
     if (ctx.chat.type !== 'private') {
       await ctx.reply('Бот на месте. Напишите /chatid, чтобы получить ID этой группы.');
       return;
@@ -496,7 +468,6 @@ export function createBot(): Bot {
     );
   });
 
-  /** Ручная публикация карточек — удобно на тесте */
   bot.command('esf', async (ctx) => {
     const n = await postNewOrders(ctx.api);
     const p = await postNewPayments(ctx.api);
@@ -508,20 +479,16 @@ export function createBot(): Bot {
     await ctx.reply('Сводка отправлена.');
   });
 
-  /** M5: Сводка дебиторской задолженности и старения */
   bot.command(['debts', 'debt', 'dolgi'], async (ctx) => {
     await postDebtSummary(ctx.api, ctx.chat.id);
   });
 
-  /** M4: Поиск спящих клиентов и предложение товаров */
   bot.command(['reactivate', 'sleeping', 'crm'], async (ctx) => {
     const count = await postReactivationCards(ctx.api, ctx.chat.id);
     if (count === 0) {
       await ctx.reply('Спящих клиентов с нарушением привычного цикла заказа сейчас не найдено.');
     }
   });
-
-  /* ─────────── Кнопки ЭСФ ─────────── */
 
   bot.callbackQuery(/^esf:/, async (ctx) => {
     const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
@@ -539,8 +506,6 @@ export function createBot(): Bot {
     }
   });
 
-  /* ─────────── Кнопки дебиторки (M5) ─────────── */
-
   bot.callbackQuery(/^debt:/, async (ctx) => {
     const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
       || ctx.from.username || String(ctx.from.id);
@@ -555,8 +520,6 @@ export function createBot(): Bot {
       }).catch(() => {});
     }
   });
-
-  /* ─────────── Кнопки реактивации спящих клиентов (M4) ─────────── */
 
   bot.callbackQuery(/^m4:/, async (ctx) => {
     const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
@@ -573,8 +536,6 @@ export function createBot(): Bot {
     }
   });
 
-  /* ─────────── Полуавтомат: кнопки карточек ─────────── */
-
   bot.callbackQuery(/^req:/, async (ctx) => {
     const name = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ')
       || ctx.from.username || String(ctx.from.id);
@@ -590,13 +551,10 @@ export function createBot(): Bot {
     }
   });
 
-  /* Ответ сотрудника на карточку — доставляем клиенту */
-
   bot.on('message:text', async (ctx, next) => {
     const reply = ctx.message.reply_to_message;
     const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
 
-    // Реагируем только на ответы на сообщения самого бота в рабочей группе
     if (!isGroup || !reply || reply.from?.id !== ctx.me.id) return next();
     if (ctx.message.text.startsWith('/')) return next();
 
@@ -605,8 +563,6 @@ export function createBot(): Bot {
 
     const res = await relayStaffReply(ctx.api, reply.message_id, ctx.message.text, staff);
 
-    // Ответили на карточку ЭСФ или на любое другое сообщение бота —
-    // это не наше дело, молчим и пропускаем дальше.
     if (!res.ok && res.notACard) return next();
 
     await ctx.reply(res.ok ? `✅ ${res.note}` : `⚠️ ${res.note}`, {
@@ -614,14 +570,6 @@ export function createBot(): Bot {
     });
   });
 
-  /* ─────────── Канал B: клиент пишет прямо боту ─────────── */
-
-  /**
-   * Без Telegram Premium канал A недоступен, и клиенты пишут не в рабочий
-   * аккаунт, а самому боту. Полуавтомат от этого не меняется: то же
-   * обращение, та же карточка, тот же ответ реплаем из группы.
-   * Разница одна — клиенту надо один раз нажать «Старт».
-   */
   bot.on('message', async (ctx, next) => {
     if (ctx.chat.type !== 'private') return next();
 
@@ -642,7 +590,6 @@ export function createBot(): Bot {
 
     const kind = describeNonText(msg);
     if (kind === 'sticker') return;
-    // Контакт обрабатывает отдельный обработчик ниже — там привязка по телефону
     if (kind === 'contact') return next();
 
     let text = msg.text ?? msg.caption ?? '';
@@ -651,7 +598,6 @@ export function createBot(): Bot {
     let attachmentKind = kind ? (KIND_RU[kind] ?? kind) : undefined;
     const rawMsg = msg as Record<string, any>;
 
-    // Голосовые и аудио в канале B
     if (kind === 'voice' || kind === 'audio') {
       const audioId = rawMsg.voice?.file_id ?? rawMsg.audio?.file_id;
       const audioMime = rawMsg.voice?.mime_type ?? rawMsg.audio?.mime_type ?? 'audio/ogg';
@@ -670,7 +616,6 @@ export function createBot(): Bot {
       }
     }
 
-    // Документы и фото для OCR в канале B
     let attachmentFileId: string | undefined;
     let attachmentMimeType: string | undefined;
     if (kind === 'document') {
@@ -704,7 +649,6 @@ export function createBot(): Bot {
 
     log.info(`Канал B ${ctx.chat.id} · ${ctx.from.first_name ?? '?'}: ${text || `[${kind}]`}`);
 
-    // business_connection_id не передаём — ответ уйдёт от имени бота
     await handleIncoming(ctx.api, {
       chatId: ctx.chat.id,
       messageId: msg.message_id,
@@ -717,8 +661,6 @@ export function createBot(): Bot {
     });
   });
 
-  /* ─────────── Канал B: контакт для привязки ─────────── */
-
   bot.on('message:contact', async (ctx) => {
     const phone = normalizePhone(ctx.message.contact.phone_number);
     if (!phone.ok) {
@@ -728,8 +670,6 @@ export function createBot(): Bot {
     await ctx.reply(`Спасибо. Номер ${phone.e164} записан — ищу вашу точку в системе.`);
     log.info(`Канал B: контакт ${phone.e164} от ${ctx.from.id}`);
   });
-
-  /* ─────────── Ошибки ─────────── */
 
   bot.catch((err) => {
     log.error('Ошибка в обработчике бота', err.message);

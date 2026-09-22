@@ -6,17 +6,6 @@ import { getDb } from '../db/index.js';
 import { mediaFiles } from '../db/schema.js';
 import { log } from '../lib/logger.js';
 
-/**
- * Отправка файлов из библиотеки.
- *
- * Telegram позволяет переиспользовать file_id: первый раз файл заливается
- * с диска, дальше отправляется одним идентификатором — мгновенно и без
- * нагрузки на канал. Поэтому после первой отправки file_id сохраняем.
- *
- * В отличие от inline-кнопок, файлы от имени бизнес-аккаунта Telegram
- * отправлять разрешает — проверено по типам Bot API.
- */
-
 export interface SendFileResult {
   ok: boolean;
   key: string;
@@ -35,7 +24,6 @@ export async function sendMediaByKey(
   if (!f) return { ok: false, key, error: 'файла нет в библиотеке' };
   if (!f.isActive) return { ok: false, key, error: 'файл выключен' };
 
-  // Уже заливали — шлём по идентификатору. Иначе с диска.
   let source: string | InputFile;
   if (f.fileId) {
     source = f.fileId;
@@ -93,7 +81,6 @@ export async function sendMediaByKey(
   }
 }
 
-/** Отправить пачку файлов по ключам */
 export async function sendAttachments(
   api: Api,
   chatId: number | string,

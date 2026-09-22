@@ -5,6 +5,7 @@ import { log } from '../lib/logger.js';
 const BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 export interface CompanyRequisites {
+  documentType?: string | null;
   companyName?: string | null;
   inn?: string | null;
   account?: string | null;
@@ -12,11 +13,10 @@ export interface CompanyRequisites {
   mfo?: string | null;
   director?: string | null;
   address?: string | null;
+  pinfl?: string | null;
+  passportNumber?: string | null;
 }
 
-/**
- * Скачать файл из Telegram по file_id в виде Buffer
- */
 export async function downloadTelegramFile(api: Api, fileId: string): Promise<{ buffer: Buffer; filePath: string }> {
   const file = await api.getFile(fileId);
   if (!file.file_path) throw new Error('Telegram не вернул путь к файлу');
@@ -29,9 +29,6 @@ export async function downloadTelegramFile(api: Api, fileId: string): Promise<{ 
   return { buffer: Buffer.from(arr), filePath: file.file_path };
 }
 
-/**
- * Расшифровка голосового сообщения (Voice-to-Text) через Gemini Audio
- */
 export async function transcribeAudio(buffer: Buffer, mimeType = 'audio/ogg'): Promise<string> {
   if (!config.GEMINI_API_KEY) return '';
 
@@ -88,19 +85,6 @@ export async function transcribeAudio(buffer: Buffer, mimeType = 'audio/ogg'): P
   }
 }
 
-export interface CompanyRequisites {
-  documentType?: string | null;
-  companyName?: string | null;
-  inn?: string | null;
-  account?: string | null;
-  bankName?: string | null;
-  mfo?: string | null;
-  director?: string | null;
-  address?: string | null;
-  pinfl?: string | null;
-  passportNumber?: string | null;
-}
-
 const REQUISITES_SCHEMA = {
   type: 'OBJECT',
   properties: {
@@ -113,13 +97,10 @@ const REQUISITES_SCHEMA = {
     director: { type: 'STRING', nullable: true, description: 'ФИО руководителя, директора или гражданина' },
     address: { type: 'STRING', nullable: true, description: 'Адрес регистрации организации или гражданина' },
     pinfl: { type: 'STRING', nullable: true, description: 'ПИНФЛ / ЖШШИР (14 цифр физлица в паспорте или ID карте)' },
-    passportNumber: { type: 'STRING', nullable: true, description: 'Серия и номер паспорта или ID-карты (например, FA 1234567, AA 1234567)' },
+    passportNumber: { type: 'STRING', nullable: true, description: 'Серия и номер паспорта или ID-карты' },
   },
 };
 
-/**
- * Извлечение реквизитов из PDF или изображения через Gemini Multimodal
- */
 export async function extractRequisitesFromMedia(
   buffer: Buffer,
   mimeType: string,
@@ -248,9 +229,6 @@ const ORDER_SCHEMA = {
   required: ['isOrder', 'items', 'rawSummary'],
 };
 
-/**
- * Распознавание заказа из фотографии (рукописный список, накладная, салфетка с кухни)
- */
 export async function extractOrderFromPhoto(
   buffer: Buffer,
   mimeType = 'image/jpeg',
@@ -326,4 +304,3 @@ export async function extractOrderFromPhoto(
     return null;
   }
 }
-

@@ -10,18 +10,15 @@ async function main() {
   console.log('🧪 ТЕСТ ИНТЕГРАЦИИ И КЛИЕНТСКОЙ ЛОГИКИ SPA (FRONTEND)');
   console.log('======================================================\n');
 
-  // Запуск сервера для автономного тестирования
   server = startAdminServer(3089);
   await new Promise((r) => setTimeout(r, 600));
 
-  // 1. Проверка доступности главного сервера на http://localhost:3089
   console.log('1. Проверка доступности сервера на http://localhost:3089:');
   const indexRes = await fetch(`${BASE_URL}/admin/`);
   assert.equal(indexRes.status, 200, 'HTML должен отдаваться с кодом 200');
   const html = await indexRes.text();
   console.log('   ✅ HTML успешно загружен (длина:', html.length, 'байт)');
 
-  // 2. Валидация DOM структуры и ключевых селекторов интерфейса
   console.log('\n2. Валидация элементов интерфейса (DOM Selectors):');
   const requiredIds = [
     'sideBrandName',
@@ -32,7 +29,6 @@ async function main() {
     'modeSelect',
     'btnSyncLinko',
     'serverClock',
-    // Табы
     'tab-overview',
     'tab-behavior',
     'tab-whitelabel',
@@ -40,24 +36,20 @@ async function main() {
     'tab-debts',
     'tab-sleepers',
     'tab-simulator',
-    // KPI
     'kpiVolume',
     'kpiOrdersCount',
     'kpiTotalDebt',
     'kpiDebtorsCount',
     'kpiOverdue',
     'kpiSleepersCount',
-    // Aging
     'bar0_7',
     'bar8_30',
     'bar31_60',
     'bar60p',
-    // Заказы и поиск
     'orderSearchInput',
     'orderStatusFilter',
     'orderCountBadge',
     'ordersFullTbody',
-    // Модалка заказа
     'orderModal',
     'modalOrderTitle',
     'modalOrderSub',
@@ -67,17 +59,14 @@ async function main() {
     'btnCloseOrderModal',
     'btnModalClose',
     'btnModalDownloadPdf',
-    // Дебиторка
     'debtSearchInput',
     'btnFilterOverdueOnly',
     'debtCountBadge',
     'debtsTbody',
-    // Спящие
     'sleeperSearchInput',
     'sleeperOverdueFilter',
     'sleeperCountBadge',
     'sleepersContainer',
-    // Симулятор
     'simMarketSelect',
     'simManagerName',
     'chatMessages',
@@ -86,16 +75,13 @@ async function main() {
     'btnSendChat',
     'btnClearChat',
     'inspectorContent',
-    // Мобильная навигация (Drawer & Hamburger)
     'btnToggleMobileMenu',
     'btnCloseSidebar',
     'sidebarOverlay',
-    // White-Label & Кастомизация бренда
     'cfgCompanyBrand',
     'cfgCompanyName',
     'cfgManagerPhone',
     'cfgGeminiModel',
-    // Быстрые шаблоны базы знаний и правил
     'chipKbDelivery',
     'chipKbPayment',
     'chipKbSchedule',
@@ -103,12 +89,10 @@ async function main() {
     'chipRulePrice',
     'chipRuleDiscount',
     'chipRulePolite',
-    // Telegram Live Preview
     'previewSenderRu',
     'previewGreetingRuText',
     'previewSenderUz',
     'previewGreetingUzText',
-    // Уведомления
     'toastContainer',
   ];
 
@@ -117,7 +101,6 @@ async function main() {
   }
   console.log(`   ✅ Все ${requiredIds.length} ключевых элементов DOM найдены и согласованы!`);
 
-  // 3. Тестирование клиентских хелперов и форматирования
   console.log('\n3. Тестирование клиентских утилит форматирования:');
   const formatMoney = (num: number) => {
     if (num == null) return '0 сум';
@@ -162,14 +145,12 @@ async function main() {
   );
   console.log('   ✅ Хелперы (форматирование валюты, XSS экранирование, статусы, шаблоны приветствий) корректны');
 
-  // 4. Тестирование логики фильтрации дебиторки
   console.log('\n4. Тест мгновенной клиентской фильтрации дебиторки:');
   const debtsRes = await fetch(`${BASE_URL}/api/debts`);
   const debtsData: any = await debtsRes.json();
   const debtors = debtsData.debtors || [];
   assert.ok(debtors.length >= 2, 'Должно быть >= 2 должников в базе');
 
-  // Фильтр: поиск по названию
   const query = debtors[0]?.marketName ? debtors[0].marketName.substring(0, 4).toLowerCase() : 'caravan';
   const filteredByName = debtors.filter((d: any) =>
     (d.marketName && d.marketName.toLowerCase().includes(query)) ||
@@ -178,19 +159,16 @@ async function main() {
   assert.ok(filteredByName.length > 0, 'Должен найтись контрагент по запросу');
   console.log(`   ✅ Поиск по «${query}»: найдено ${filteredByName.length} контрагентов`);
 
-  // Фильтр: только с реальной просрочкой
   const overdueOnly = debtors.filter((d: any) => d.overdue > 0);
   assert.ok(overdueOnly.length <= debtors.length);
   console.log(`   ✅ Фильтр «Только с просрочкой»: ${overdueOnly.length} из ${debtors.length} точек`);
 
-  // 5. Тестирование логики фильтрации спящих клиентов
   console.log('\n5. Тест фильтрации спящих точек:');
   const sleepersRes = await fetch(`${BASE_URL}/api/sleepers`);
   const sleepersList: any = await sleepersRes.json();
   assert.ok(sleepersList.length >= 2);
   console.log(`   ✅ Спящих клиентов в базе: ${sleepersList.length}`);
 
-  // 6. Тестирование состава заказа и модального окна
   console.log('\n6. Тест формирования содержимого модального окна заказа:');
   const ordersRes = await fetch(`${BASE_URL}/api/orders?limit=1`);
   const [firstOrder]: any = await ordersRes.json();
@@ -206,7 +184,6 @@ async function main() {
   }
   console.log(`   ✅ Заказ #${details.order.id}: ${details.items.length} товаров успешно распарсены для модалки`);
 
-  // 7. Тестирование списка точек для AI Симулятора
   console.log('\n7. Тест наполнения выпадающего списка точек для AI Симулятора:');
   const marketsRes = await fetch(`${BASE_URL}/api/markets?limit=50`);
   const markets: any = await marketsRes.json();

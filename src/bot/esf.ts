@@ -11,7 +11,6 @@ import { log } from '../lib/logger.js';
 import { generateWaybillPdf } from '../lib/pdf-waybill.js';
 import { getCompanyProfile } from '../lib/settings.js';
 
-/** Статусы, при которых заказ подлежит выставлению ЭСФ */
 const BILLABLE = ['delivered', 'given'] as const;
 
 const esc = (s: unknown) =>
@@ -21,8 +20,6 @@ const PAYMENT_LABEL: Record<string, string> = {
   cash: 'наличные',
   bank: 'перечисление',
 };
-
-/* ─────────── Карточка заказа ─────────── */
 
 export async function buildOrderCard(orderId: number): Promise<string | null> {
   const db = await getDb();
@@ -79,8 +76,6 @@ function esfKeyboard(orderId: number): InlineKeyboard {
     .text('Проблема', `esf:problem:${orderId}`);
 }
 
-/* ─────────── Публикация новых заказов ─────────── */
-
 export async function postNewOrders(api: Api): Promise<number> {
   const chat = config.ACCOUNTANT_CHAT_ID;
   if (!chat) {
@@ -91,7 +86,6 @@ export async function postNewOrders(api: Api): Promise<number> {
   const db = await getDb();
   const today = todayTashkent();
 
-  // Автоматически архивируем все исторические заказы прошлых дней, чтобы они никогда не спамились в Telegram
   try {
     await db.execute(sql`
       INSERT INTO esf_queue (order_id, status)
@@ -103,7 +97,6 @@ export async function postNewOrders(api: Api): Promise<number> {
     log.warn('Не удалось архивировать исторические заказы', (e as Error).message);
   }
 
-  // Заказы по перечислению, созданные СЕГОДНЯ, подлежащие ЭСФ и ещё не попавшие в очередь
   const fresh = await db
     .select({ id: orders.id })
     .from(orders)
@@ -148,8 +141,6 @@ export async function postNewOrders(api: Api): Promise<number> {
   return posted;
 }
 
-/* ─────────── Перечисления ─────────── */
-
 export async function postNewPayments(api: Api): Promise<number> {
   const chat = config.ACCOUNTANT_CHAT_ID;
   if (!chat) return 0;
@@ -157,7 +148,6 @@ export async function postNewPayments(api: Api): Promise<number> {
   const db = await getDb();
   const today = todayTashkent();
 
-  // Публикуем перечисления, поступившие СЕГОДНЯ (не поднимаем архивы за 2022-2025)
   const rows = await db.select().from(payments)
     .where(and(
       eq(payments.paymentType, 'bank'),
@@ -196,8 +186,6 @@ export async function postNewPayments(api: Api): Promise<number> {
   return posted;
 }
 
-/* ─────────── Кнопки ─────────── */
-
 export async function handleEsfCallback(
   api: Api,
   data: string,
@@ -211,8 +199,6 @@ export async function handleEsfCallback(
   const db = await getDb();
 
   if (action === 'items') {
-    // Состав длинный — во всплывающее окно Telegram (200 символов) не влезет,
-    // поэтому отправляем отдельным сообщением в ту же группу.
     await send(api, {
       dedupeKey: `esf:items:${orderId}:${Date.now()}`,
       kind: 'esf_items',
@@ -254,7 +240,6 @@ export async function handleEsfCallback(
       issuedByName: userName,
     }).where(eq(esfQueue.orderId, orderId));
 
-    // Отмечаем в Linko, что заказ выгружен во внешнюю систему
     let syncNote = '';
     if (config.MODE === 'live') {
       try {
@@ -290,8 +275,6 @@ export async function handleEsfCallback(
 
   return { answer: 'Неизвестная кнопка' };
 }
-
-/* ─────────── Вечерняя сводка ─────────── */
 
 export async function postDailyDigest(api: Api): Promise<void> {
   const chat = config.ACCOUNTANT_CHAT_ID;

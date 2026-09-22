@@ -1,8 +1,3 @@
-/**
- * Модуль умных допродаж (Cross-Sell & Upsell) для B2B оптовой торговли FMCG/HoReCa.
- * Автоматически подбирает сопутствующие и акционные товары на основе текущего заказа клиента.
- */
-
 export interface CartItemLike {
   productName: string;
   quantity?: number;
@@ -15,7 +10,6 @@ export interface CrossSellRecommendation {
   recommendationPhraseUz: string;
 }
 
-// Матрица товарного соседства (на основе реального ассортимента Dardanel, Burcu, Sayam)
 const COMPATIBILITY_RULES: Array<{
   triggers: string[];
   suggestedProduct: string;
@@ -60,9 +54,6 @@ const COMPATIBILITY_RULES: Array<{
   },
 ];
 
-/**
- * Подобрать лучшую допродажу на основе позиций в заказе
- */
 export function getCrossSellRecommendation(
   cart: CartItemLike[],
   alreadySuggested: string[] = [],
@@ -72,7 +63,6 @@ export function getCrossSellRecommendation(
   const cartText = cart.map((i) => i.productName.toLowerCase()).join(' ');
 
   for (const rule of COMPATIBILITY_RULES) {
-    // Проверяем, есть ли триггер в корзине
     const hasTrigger = rule.triggers.some((tr) => cartText.includes(tr));
     const firstWord = (rule.suggestedProduct.toLowerCase().split(' ')[0]) ?? '';
     const alreadyInCart = Boolean(firstWord && cartText.includes(firstWord));

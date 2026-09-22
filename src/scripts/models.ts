@@ -1,4 +1,3 @@
-/** Какие модели доступны нашему ключу: npm run models */
 import { listModels } from '../ai/agent.js';
 import { config } from '../config.js';
 

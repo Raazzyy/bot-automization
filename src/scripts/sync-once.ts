@@ -1,4 +1,3 @@
-/** Разовая синхронизация с Linko: npm run sync */
 import { migrate } from '../db/migrate.js';
 import { syncAll } from '../linko/sync.js';
 import { log } from '../lib/logger.js';

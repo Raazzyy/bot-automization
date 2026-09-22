@@ -31,16 +31,13 @@ export interface EnrichedEntity {
   totalSum: number;
 }
 
-/** Официальный эталонный каталог из Прайс 2026.pdf */
 export const OFFICIAL_AKM_CATALOG = [
-  // Уксусы Sayam (500 мл стекло)
   { name: 'Яблочный уксус фильтрованный Sayam 500 мл', price: 29_000, unit: 'бут', inBox: 12 },
   { name: 'Яблочный уксус нефильтрованный Sayam 500 мл', price: 39_000, unit: 'бут', inBox: 12 },
   { name: 'Белый виноградный уксус Sayam 500 мл', price: 29_000, unit: 'бут', inBox: 12 },
   { name: 'Черный виноградный уксус Sayam 500 мл', price: 29_000, unit: 'бут', inBox: 12 },
   { name: 'Бальзамический уксус Sayam 500 мл', price: 39_000, unit: 'бут', inBox: 12 },
 
-  // Burcu: томатная паста, соусы, вяленые томаты, пицца соус
   { name: 'Томатная паста Burcu 830 г ж/б', price: 37_000, unit: 'бан', inBox: 12 },
   { name: 'Томатная паста Burcu 600 г стекло', price: 37_000, unit: 'бан', inBox: 12 },
   { name: 'Томатная паста Burcu 4300 г ж/б', price: 149_900, unit: 'бан', inBox: 6 },
@@ -50,7 +47,6 @@ export const OFFICIAL_AKM_CATALOG = [
   { name: 'Пицца соус Burcu 580 г стекло', price: 26_000, unit: 'бан', inBox: 12 },
   { name: 'Пицца соус Burcu 4200 г ж/б', price: 139_900, unit: 'бан', inBox: 6 },
 
-  // Соусы и соки Doganay & Nare
   { name: 'Гранатовый соус Doganay 340 г ПЭТ', price: 25_900, unit: 'бут', inBox: 12 },
   { name: 'Гранатовый соус Doganay 680 г ПЭТ', price: 34_900, unit: 'бут', inBox: 12 },
   { name: 'Гранатовый соус Doganay 1000 г ПЭТ', price: 42_900, unit: 'бут', inBox: 12 },
@@ -63,20 +59,17 @@ export const OFFICIAL_AKM_CATALOG = [
   { name: 'Виноградный уксус Nare 1000 мл ПЭТ', price: 32_000, unit: 'бут', inBox: 12 },
   { name: 'Яблочный уксус Doganay 500 мл ПЭТ', price: 25_900, unit: 'бут', inBox: 12 },
 
-  // Тунец Dardanel
   { name: 'Тунец кусочками в собственном соку Dardanel 150 г', price: 29_900, unit: 'бан', inBox: 24 },
   { name: 'Тунец кусковой в подсолнечном масле Dardanel 150 г', price: 27_900, unit: 'бан', inBox: 24 },
   { name: 'Тунец филе в подсолнечном масле Dardanel 150 г', price: 29_900, unit: 'бан', inBox: 24 },
   { name: 'Тунец кусковой в оливковом масле Dardanel 150 г', price: 34_900, unit: 'бан', inBox: 24 },
   { name: 'Тунец в подсолнечном масле Dardanel HoReCa 1705 г', price: 245_000, unit: 'бан', inBox: 6 },
 
-  // Халапеньо & Чили
   { name: 'Халапеньо Kavaklidere Efor 650 г стекло', price: 44_000, unit: 'бан', inBox: 12 },
   { name: 'Халапеньо Kavaklidere Efor 325 г стекло', price: 23_500, unit: 'бан', inBox: 12 },
   { name: 'Сладкий соус чили для курицы Scoville 5600 г', price: 180_000, unit: 'кан', inBox: 1 },
 ];
 
-/** Узбекско-русский словарь HoReCa терминов */
 const UZ_RU: Record<string, string> = {
   tunes: 'тунец', tunets: 'тунец', dardanel: 'dardanel', дарданел: 'dardanel',
   sirka: 'уксус', сирка: 'уксус',
@@ -92,7 +85,6 @@ const UZ_RU: Record<string, string> = {
   sharbat: 'сок',
 };
 
-/** Токенизация и перевод */
 function normalizeTokens(s: string): string[] {
   const clean = s
     .toLowerCase()
@@ -111,13 +103,11 @@ function normalizeTokens(s: string): string[] {
   return [...new Set(out)];
 }
 
-/** Загрузка активного каталога с ценами и остатками из БД */
 export async function getActiveCatalog(priceListId = 1): Promise<CatalogProduct[]> {
   const db = await getDb();
 
   const prods = await db.select().from(products).where(eq(products.isActive, true));
   if (!prods.length) {
-    // Если в БД пока пусто, возвращаем официальный каталог по умолчанию
     return OFFICIAL_AKM_CATALOG.map((p, idx) => ({
       id: -(idx + 1),
       name: p.name,
@@ -155,10 +145,6 @@ export async function getActiveCatalog(priceListId = 1): Promise<CatalogProduct[
   }));
 }
 
-/**
- * Интеллектуальное сопоставление (додумывание) позиции из свободного текста клиента
- * с товаром из официального каталога AKM Holdings.
- */
 export function matchItemToCatalogSync(
   rawItem: ExtractedItem,
   catalog: CatalogProduct[],
@@ -202,7 +188,6 @@ export function matchItemToCatalogSync(
       let score = matchedTokenCount / queryTokens.length;
       const lowProd = prod.name.toLowerCase();
 
-      // Приоритет совпадения брендов
       if (queryTokens.includes('dardanel') && lowProd.includes('dardanel')) score += 0.6;
       if (queryTokens.includes('burcu') && lowProd.includes('burcu')) score += 0.6;
       if (queryTokens.includes('sayam') && lowProd.includes('sayam')) score += 0.6;
@@ -210,7 +195,6 @@ export function matchItemToCatalogSync(
       if (queryTokens.includes('nare') && lowProd.includes('nare')) score += 0.6;
       if (queryTokens.includes('scoville') && lowProd.includes('scoville')) score += 0.6;
 
-      // Приоритет категорий
       if (queryTokens.includes('тунец') && lowProd.includes('тунец')) score += 0.5;
       if (queryTokens.includes('уксус') && lowProd.includes('уксус')) score += 0.5;
       if (queryTokens.includes('яблочный') && lowProd.includes('яблочный')) score += 0.5;
@@ -224,7 +208,6 @@ export function matchItemToCatalogSync(
       if (queryTokens.includes('чили') && lowProd.includes('чили')) score += 0.7;
       if (queryTokens.includes('вяленые') && lowProd.includes('вяленые')) score += 0.7;
 
-      // Приоритет граммовок (830, 4300, 500, 310, 150, 1705, 5600)
       for (const t of queryTokens) {
         if (/^\d{3,4}$/.test(t) && lowProd.includes(t)) {
           score += 0.4;
@@ -245,7 +228,6 @@ export function matchItemToCatalogSync(
     }
   }
 
-  // Если нашли товар в каталоге
   if (bestProduct && bestScore >= 0.35) {
     const price = bestProduct.price > 0 ? bestProduct.price : 29_000;
     const officialUnit = bestProduct.measurementName || rawUnit || 'шт';
@@ -265,7 +247,6 @@ export function matchItemToCatalogSync(
     };
   }
 
-  // Fallback на официальный перечень AKM
   const rawLower = rawItem.name.toLowerCase();
   for (const ref of OFFICIAL_AKM_CATALOG) {
     const refLower = ref.name.toLowerCase();
@@ -310,9 +291,6 @@ export function matchItemToCatalogSync(
   };
 }
 
-/**
- * Сопоставляет все позиции заказа из структуры ExtractedEntity[] с реальным каталогом Linko
- */
 export async function matchOrderEntitiesToCatalog(
   entities: ExtractedEntity[],
   priceListId = 1,

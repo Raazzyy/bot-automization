@@ -6,19 +6,9 @@ import { getDb } from '../db/index.js';
 import { outbox } from '../db/schema.js';
 import { log } from '../lib/logger.js';
 
-/**
- * Единственная точка выхода наружу.
- *
- * Здесь живут три вещи, которые нельзя разбрасывать по коду:
- *   • режим (dry_run / shadow / live) — что кому можно отправлять;
- *   • дедупликация по ключу — одна и та же карточка не уйдёт дважды;
- *   • запись в outbox — потом видно, что и когда ушло.
- */
-
 export type Audience = 'staff' | 'client';
 
 export interface SendOptions {
-  /** Уникальный ключ. Повторная отправка с тем же ключом отбрасывается. */
   dedupeKey: string;
   kind: string;
   chatId: number | string;
@@ -26,7 +16,6 @@ export interface SendOptions {
   audience: Audience;
   channel: 'A' | 'B';
   keyboard?: InlineKeyboardMarkup;
-  /** Для канала A — отправка от имени аккаунта */
   businessConnectionId?: string;
 }
 
@@ -37,8 +26,6 @@ export type SendOutcome =
 function allowedByMode(audience: Audience): boolean {
   switch (config.MODE) {
     case 'live': return true;
-    // Полуавтомат: сотрудникам пишем, клиенту — только руками человека
-    // (это идёт мимо send, через relayStaffReply)
     case 'assist': return audience === 'staff';
     case 'shadow': return audience === 'staff';
     case 'dry_run': return false;
@@ -53,7 +40,6 @@ export async function send(api: Api, o: SendOptions): Promise<SendOutcome> {
     return { sent: false, reason: 'no_chat' };
   }
 
-  // 1. Дедупликация: пробуем занять ключ
   try {
     await db.insert(outbox).values({
       dedupeKey: o.dedupeKey,
@@ -68,7 +54,6 @@ export async function send(api: Api, o: SendOptions): Promise<SendOutcome> {
     return { sent: false, reason: 'duplicate' };
   }
 
-  // 2. Режим
   if (!allowedByMode(o.audience)) {
     await db.update(outbox)
       .set({ status: 'skipped', error: `режим ${config.MODE}` })
@@ -78,13 +63,10 @@ export async function send(api: Api, o: SendOptions): Promise<SendOutcome> {
     return { sent: false, reason: 'mode' };
   }
 
-  // 3. Отправка
   try {
     const msg = await api.sendMessage(o.chatId, o.text, {
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
-      // Канал A: сообщение уходит от имени аккаунта.
-      // Inline-клавиатуры там запрещены Telegram — молча их не передаём.
       ...(o.businessConnectionId
         ? { business_connection_id: o.businessConnectionId }
         : o.keyboard
@@ -129,7 +111,6 @@ function indent(s: string): string {
   return s.split('\n').map((l) => `      │ ${l.replace(/<[^>]+>/g, '')}`).join('\n');
 }
 
-/** Развесистая проверка для канала A перед любой отправкой клиенту */
 export function businessChatAllowed(chatId: number | string): { ok: boolean; why?: string } {
   const id = String(chatId);
   if (config.BUSINESS_BLOCKLIST.includes(id)) {

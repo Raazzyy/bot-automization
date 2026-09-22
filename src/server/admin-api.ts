@@ -140,15 +140,13 @@ export async function handleAdminRequest(req: IncomingMessage, res: ServerRespon
     }
 
     if ((pathname === '/health' || pathname === '/api/health') && req.method === 'GET') {
-      const settings = await getAllSettings();
       return sendJson(res, 200, {
         status: 'ok',
         uptime_sec: Math.round(process.uptime()),
         timestamp: new Date().toISOString(),
         service: 'AKM Holdings B2B Bot & CRM Platform',
-        mode: await getActiveMode(),
-        bot_enabled: await isBotEnabled(),
-        linko_url: settings.linko_base_url,
+        mode: config.MODE,
+        linko_url: config.LINKO_BASE_URL,
       });
     }
 

@@ -6,6 +6,7 @@
  * должно читаться как написанное человеком. В канале B бот и выглядит ботом.
  */
 import { getAllSettings, type AppSettings } from '../lib/settings.js';
+import { formatFewShotForSystemPrompt } from './chat-learner.js';
 
 
 const COMMON_RULES = `
@@ -280,6 +281,11 @@ ${COMMON_RULES}
 
   if (s.custom_rules?.trim()) {
     prompt += `\n\n5. ДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА И ПОВЕДЕНИЕ:\n${s.custom_rules.trim()}`;
+  }
+
+  const learnedFewShot = formatFewShotForSystemPrompt();
+  if (learnedFewShot) {
+    prompt += `\n\n6. ${learnedFewShot}`;
   }
 
   prompt += '\n\nЕсли тебе нечего ответить по инструментам — скажи, что уточнишь у коллег/бухгалтерии, и вызови pozvat_menedzhera.';

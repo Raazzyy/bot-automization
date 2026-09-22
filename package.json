@@ -20,7 +20,8 @@
     "media": "tsx src/scripts/media.ts",
     "test:db": "tsx src/scripts/test-db.ts",
     "test:admin": "tsx src/scripts/test-admin.ts",
-    "test:full": "tsx src/scripts/test-full-crm.ts"
+    "test:full": "tsx src/scripts/test-full-crm.ts",
+    "learn:chats": "tsx src/scripts/learn-chats.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",

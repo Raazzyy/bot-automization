@@ -9,7 +9,7 @@ import { postReactivationCards } from '../bot/reactivate.js';
 import { generateWaybillPdf, generateReconciliationPdf } from '../lib/pdf-waybill.js';
 import { log } from '../lib/logger.js';
 
-const TARGET_CHAT = config.ACCOUNTANT_CHAT_ID || '-5319232815';
+const TARGET_CHAT = config.ACCOUNTANT_CHAT_ID || '-1004435807678';
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

@@ -3,6 +3,7 @@ import { log } from '../lib/logger.js';
 import { getAllSettings } from '../lib/settings.js';
 import { TOOL_DECLARATIONS, callTool, listMedia, type ToolContext } from './tools.js';
 import { SYSTEM_CHANNEL_A, SYSTEM_CHANNEL_B, getSystemPromptA, getSystemPromptB, buildContext, detectLang } from './prompt.js';
+import { findClientProfile } from './chat-learner.js';
 
 
 /**
@@ -117,6 +118,13 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
     return { reply: '', toolCalls: [], attachments: [], error: 'GEMINI_API_KEY не задан' };
   }
 
+  const clientProfile = findClientProfile({
+    clientName: input.clientName,
+    marketName: input.marketName,
+  });
+
+  const isNewClient = !clientProfile && !input.ctx.marketId && !input.lastOrderDate && (!input.history || input.history.length === 0);
+
   const baseSystem = input.channel === 'A' ? await getSystemPromptA(settings) : await getSystemPromptB(settings);
   const system = baseSystem
     + '\n\n'
@@ -129,6 +137,8 @@ export async function runAgent(input: AgentInput): Promise<AgentTurn> {
       marketId: input.ctx.marketId,
       lastOrderDate: input.lastOrderDate,
       lang: detectLang(input.message),
+      clientProfile,
+      isNewClient,
     });
 
   const contents: Content[] = [

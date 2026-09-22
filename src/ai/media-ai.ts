@@ -210,3 +210,120 @@ export async function extractRequisitesFromMedia(
     return null;
   }
 }
+
+export interface RecognizedOrderItem {
+  productName: string;
+  amount: number;
+  unit?: string;
+  comment?: string;
+}
+
+export interface PhotoOrderResult {
+  isOrder: boolean;
+  items: RecognizedOrderItem[];
+  rawSummary: string;
+  notes?: string;
+}
+
+const ORDER_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    isOrder: { type: 'BOOLEAN', description: 'Является ли изображение заявкой, списком товаров, накладной или чеком заказа' },
+    items: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          productName: { type: 'STRING', description: 'Наименование товара' },
+          amount: { type: 'NUMBER', description: 'Количество' },
+          unit: { type: 'STRING', nullable: true, description: 'Единица измерения (шт, кор, блок, кг, банка)' },
+          comment: { type: 'STRING', nullable: true, description: 'Дополнительные пометки' },
+        },
+        required: ['productName', 'amount'],
+      },
+    },
+    rawSummary: { type: 'STRING', description: 'Краткий читаемый текст всего заказа' },
+    notes: { type: 'STRING', nullable: true, description: 'Заметки по доставке или контактам, если есть' },
+  },
+  required: ['isOrder', 'items', 'rawSummary'],
+};
+
+/**
+ * Распознавание заказа из фотографии (рукописный список, накладная, салфетка с кухни)
+ */
+export async function extractOrderFromPhoto(
+  buffer: Buffer,
+  mimeType = 'image/jpeg',
+): Promise<PhotoOrderResult | null> {
+  if (!config.GEMINI_API_KEY) return null;
+
+  const base64 = buffer.toString('base64');
+  const prompt = `
+Ты эксперт по распознаванию заказов для дистрибьютора продуктов питания в Ташкенте.
+Клиент прислал фото:
+- Рукописная записка повара/шефа или закупщика на бумаге или салфетке (на русском или узбекском языках)
+- Напечатанный бланк заказа, товарный чек или накладная
+- Список позиций с указанием количества
+
+Твоя задача:
+1. Проверить, содержит ли фото заявку на товары (isOrder).
+2. Распознать все позиции, количество и единицы измерения (шт, коробки, банки, блоки, кг).
+3. Перевести сокращения в читаемый вид (например: «тунец 160» -> «Тунец 160г», «маслины б/к» -> «Маслины без косточки», «уксус наре» -> «Уксус Nare»).
+4. Сформировать понятный текст заказа в rawSummary (например: «Тунец 160г — 2 кор., Маслины — 4 банки»).
+
+Ответь строго в формате JSON по схеме.
+`.trim();
+
+  try {
+    const res = await fetch(
+      `${BASE}/models/${config.GEMINI_MODEL}:generateContent?key=${config.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    mimeType,
+                    data: base64,
+                  },
+                },
+                { text: prompt },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 2048,
+            responseMimeType: 'application/json',
+            responseSchema: ORDER_SCHEMA,
+          },
+        }),
+        signal: AbortSignal.timeout(35_000),
+      },
+    );
+
+    const json = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+      error?: { message?: string };
+    };
+
+    if (!res.ok) throw new Error(json.error?.message ?? `HTTP ${res.status}`);
+    const raw = json.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+    if (!raw.trim()) return null;
+
+    const parsed = JSON.parse(raw) as PhotoOrderResult;
+    if (!parsed.isOrder || !parsed.items || parsed.items.length === 0) {
+      return null;
+    }
+
+    return parsed;
+  } catch (e) {
+    log.warn('Ошибка распознавания заказа с фото через Gemini', (e as Error).message);
+    return null;
+  }
+}
+

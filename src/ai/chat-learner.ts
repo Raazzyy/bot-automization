@@ -184,3 +184,63 @@ ${aliases ? `\nСловарь разговорных названий клиен
 ${examples ? `\nЗолотые стандарты ответов менеджеров:\n${examples}\n` : ''}
 `.trim();
 }
+
+/**
+ * Поиск профиля постоянного клиента по имени или названию точки
+ */
+export function findClientProfile(query: { clientName?: string | null; marketName?: string | null }): ClientProfile | null {
+  const data = loadLearnedKnowledge();
+  if (!data || !data.clientProfiles || data.clientProfiles.length === 0) return null;
+
+  const qName = (query.clientName || '').toLowerCase().trim();
+  const qMarket = (query.marketName || '').toLowerCase().trim();
+
+  if (!qName && !qMarket) return null;
+
+  for (const profile of data.clientProfiles) {
+    const pName = profile.clientName.toLowerCase().trim();
+    if (qName && (pName.includes(qName) || qName.includes(pName))) {
+      return profile;
+    }
+    if (qMarket && (pName.includes(qMarket) || qMarket.includes(pName))) {
+      return profile;
+    }
+    if (profile.notes && ((qName && profile.notes.toLowerCase().includes(qName)) || (qMarket && profile.notes.toLowerCase().includes(qMarket)))) {
+      return profile;
+    }
+  }
+
+  return null;
+}
+
+const CORRECTIONS_FILE = path.resolve('src/ai/manager-feedback.json');
+
+export interface ManagerFeedbackEntry {
+  timestamp: string;
+  chatId: number;
+  clientName?: string;
+  clientText: string;
+  botDraft?: string;
+  managerActualText: string;
+}
+
+/**
+ * Записать корректировку живого менеджера для непрерывного обучения (Active Feedback Loop)
+ */
+export function recordManagerFeedback(entry: Omit<ManagerFeedbackEntry, 'timestamp'>): void {
+  try {
+    let list: ManagerFeedbackEntry[] = [];
+    if (fs.existsSync(CORRECTIONS_FILE)) {
+      list = JSON.parse(fs.readFileSync(CORRECTIONS_FILE, 'utf8'));
+    }
+    list.push({
+      ...entry,
+      timestamp: new Date().toISOString(),
+    });
+    fs.writeFileSync(CORRECTIONS_FILE, JSON.stringify(list.slice(-500), null, 2), 'utf8');
+    log.info(`Записана правка менеджера для чата ${entry.chatId} (всего правок: ${list.length})`);
+  } catch (e) {
+    log.warn('Не удалось записать правку менеджера', (e as Error).message);
+  }
+}
+

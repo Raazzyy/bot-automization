@@ -183,6 +183,14 @@ export function buildContext(o: {
   lastOrderDate?: string | null;
   lang?: 'uz' | 'ru';
   media?: { key: string; title: string; description: string | null; keywords: string[] }[];
+  isNewClient?: boolean;
+  clientProfile?: {
+    clientName: string;
+    typicalProducts: string[];
+    orderFrequency?: string;
+    paymentHabit?: string;
+    notes?: string;
+  } | null;
 }): string {
   const lines: string[] = [];
 
@@ -204,6 +212,26 @@ export function buildContext(o: {
 
   lines.push(`Сегодня: ${new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10)}`);
 
+  if (o.isNewClient) {
+    lines.push(
+      '',
+      '⚡ СТАТУС: НОВЫЙ КЛИЕНТ',
+      'Это первый контакт или новый клиент. Придерживайся эталонного приветствия: представься, тепло поприветствуй, уточни название заведения/точки и адрес, предложи ознакомиться с топ-каталогом.',
+    );
+  } else if (o.clientProfile) {
+    const cp = o.clientProfile;
+    const profileLines: string[] = [
+      '',
+      `🎯 ПЕРСОНАЛЬНЫЙ ПРОФИЛЬ КЛИЕНТА («${cp.clientName}»):`,
+    ];
+    if (cp.typicalProducts?.length) profileLines.push(`• Любимые позиции: ${cp.typicalProducts.join(', ')}`);
+    if (cp.orderFrequency) profileLines.push(`• Частота заказов: ${cp.orderFrequency}`);
+    if (cp.paymentHabit) profileLines.push(`• Оплата и дебиторка: ${cp.paymentHabit}`);
+    if (cp.notes) profileLines.push(`• Заметки и стиль: ${cp.notes}`);
+    profileLines.push('Общайся в том ключе и стиле, к которому этот клиент привык в многолетнем сотрудничестве!');
+    lines.push(...profileLines);
+  }
+
   // Без этого блока модель не знает ни одного ключа и вызвать
   // otpravit_fayl не сможет — придумывать ключи ей запрещено.
   if (o.media?.length) {
@@ -220,6 +248,7 @@ export function buildContext(o: {
 
   return lines.join('\n');
 }
+
 
 /**
  * Динамическое формирование системного промпта с учетом настроек White-Label,

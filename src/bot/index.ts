@@ -1,5 +1,5 @@
 import { Bot } from 'grammy';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql, desc, and } from 'drizzle-orm';
 import { config } from '../config.js';
 import { getDb } from '../db/index.js';
 import { businessConnections, customers, channelBindings, messages, esfQueue, markets } from '../db/schema.js';
@@ -12,7 +12,8 @@ import { canSendToClients, isAssist } from '../config.js';
 import { isBotEnabled, getActiveMode, getAllSettings } from '../lib/settings.js';
 import { handleIncoming, handleAssistCallback, relayStaffReply } from './assist.js';
 import { handleEsfCallback, postNewOrders, postNewPayments, postDailyDigest } from './esf.js';
-import { downloadTelegramFile, transcribeAudio } from '../ai/media-ai.js';
+import { downloadTelegramFile, transcribeAudio, extractOrderFromPhoto } from '../ai/media-ai.js';
+import { recordManagerFeedback } from '../ai/chat-learner.js';
 import { postDebtSummary, handleDebtCallback, calculateDebts } from './debts.js';
 import { postReactivationCards, handleReactivationCallback, findDormantMarkets } from './reactivate.js';
 import { fmtSum } from '../lib/money.js';
@@ -158,6 +159,24 @@ export function createBot(): Bot {
 
     if (fromOwner) {
       log.debug(`Канал A ${chatId}: пишет владелец — бот молчит`);
+      if (msg.text) {
+        try {
+          const lastInMsg = await db.select().from(messages)
+            .where(and(eq(messages.chatId, chatId), eq(messages.direction, 'in')))
+            .orderBy(desc(messages.createdAt))
+            .limit(1);
+
+          if (lastInMsg[0]?.text) {
+            recordManagerFeedback({
+              chatId,
+              clientText: lastInMsg[0].text,
+              managerActualText: msg.text,
+            });
+          }
+        } catch (e) {
+          log.warn('Ошибка фиксации обратной связи менеджера', (e as Error).message);
+        }
+      }
       return;
     }
 
@@ -238,6 +257,19 @@ export function createBot(): Bot {
     } else if (kind === 'photo') {
       attachmentFileId = rawMsg.photo?.at(-1)?.file_id;
       attachmentMimeType = 'image/jpeg';
+      if (attachmentFileId) {
+        try {
+          const { buffer } = await downloadTelegramFile(ctx.api, attachmentFileId);
+          const photoOrder = await extractOrderFromPhoto(buffer, 'image/jpeg');
+          if (photoOrder && photoOrder.isOrder) {
+            log.info(`Канал A ${chatId}: распознан заказ с фото -> «${photoOrder.rawSummary}»`);
+            text = `[Заказ с фото]: ${photoOrder.rawSummary}` + (text ? `\nКомментарий: ${text}` : '');
+            attachmentKind = 'фото заказа (распознано)';
+          }
+        } catch (e) {
+          log.warn(`Канал A ${chatId}: ошибка распознавания фото: ${(e as Error).message}`);
+        }
+      }
     }
 
     const currentMode = await getActiveMode();
